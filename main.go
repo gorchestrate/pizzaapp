@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/gladkikhartem/async"
+	"github.com/gorchestrate/async"
 	"github.com/gorilla/mux"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"

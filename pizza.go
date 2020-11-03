@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gladkikhartem/async"
-	"github.com/gladkikhartem/async/plugins/mail"
+	"github.com/gorchestrate/async"
+	"github.com/gorchestrate/mail-plugin"
 )
 
 type Pizza struct {
