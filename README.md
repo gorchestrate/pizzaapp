@@ -42,10 +42,10 @@ You can create **your** library for **your** programming language to model proce
 You may even integrate existing workflow engines to communicate with Gorchestrate.
 
 #### What are guarantees related to process execution?
-* Linearized consistency for all communications between all processes within single Gorchestrate Core instance.
-* Strong consistency for all write operations. Any read following write will return up-to-date data.
-* Callbacks are called in the order they were triggered. Only one callback gets unblocked in a single point of time (except callback is taking longer time for execution than expected)
-* Update to process is atomic. All Recv/Send/Call operations are either succeed or fail.
+* **Linearized consistency** for all communications between all processes within single Gorchestrate Core instance.
+* **Strong consistency** for all write operations. Any read following write will return up-to-date data.
+* **Atomic** update to process. All Recv/Send/Call operations are either succeed or fail.
+* **Exactly Once** workflow execution semantics. Callbacks are called in the order they were triggered. Only one callback gets unblocked in a single point of time (except callback is taking longer time for execution than expected)
 
 #### Why we have to define callbacks for each step in our workflow? Can we implement workflows in a simpler way?
 The main reason for **async** library API design is simplicity. FSM-based design allows people to adapt to framework quickly.
