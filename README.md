@@ -4,7 +4,7 @@ Example app using Gorchestrate to manage pizza ordering
 ## Usage
 Run service in a separate terminal:
 ```
-go run .
+SERVICE_NAME=PutYourUniqueServiceNameHere go run .
 ```
 
 Create new PizzaOrderProcess
