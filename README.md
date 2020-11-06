@@ -35,17 +35,21 @@ With typical workflows engines - you use them to model your workflow logic and u
 With Gorchstrate - you model and execute your workflow logic using code, and only use Gorchestrate for communication.
 
 
+#### What are guarantees related to process execution?
+* **Linearized consistency** for all communications between all processes within single Gorchestrate Core instance.
+* **Strong consistency** for all write operations. Any read following write will return up-to-date data.
+* **Atomic** update to process. All Recv/Send/Call operations are either succeed or fail.
+* **Exactly Once** workflow execution semantics. Callbacks are called in the order they were triggered. Only one callback gets unblocked in a single point of time (except callback is taking longer time for execution than expected)
+
 #### Is it possible to use languages other than Go to work with Gorchestrate?
 **async** library is mostly syntatic sugar to model processes in a "Go way" without too much efforts. 
 
 You can create **your** library for **your** programming language to model processes the way **you** want.
 You may even integrate existing workflow engines to communicate with Gorchestrate.
 
-#### What are guarantees related to process execution?
-* **Linearized consistency** for all communications between all processes within single Gorchestrate Core instance.
-* **Strong consistency** for all write operations. Any read following write will return up-to-date data.
-* **Atomic** update to process. All Recv/Send/Call operations are either succeed or fail.
-* **Exactly Once** workflow execution semantics. Callbacks are called in the order they were triggered. Only one callback gets unblocked in a single point of time (except callback is taking longer time for execution than expected)
+#### What performance I can expect from Gorchestrate?
+With small size of workflows state you can expect continious >10,000 req/sec performance on a typical server.
+Main bottleneck is payload size. Bigger workflows states make API operation slower.
 
 #### Why we have to define callbacks for each step in our workflow? Can we implement workflows in a simpler way?
 The main reason for **async** library API design is simplicity. FSM-based design allows people to adapt to framework quickly.
