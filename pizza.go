@@ -22,7 +22,7 @@ type Order struct {
 // type definition for gorchestrate core.
 func (s Order) Type() *async.Type {
 	// here we simply generating one using reflection
-	return async.ReflectType("pizza.Order", s)
+	return async.ReflectType(fmt.Sprintf("%s.Order", serviceName), s)
 }
 
 type ConfirmedOrder struct {
@@ -32,7 +32,7 @@ type ConfirmedOrder struct {
 }
 
 func (s ConfirmedOrder) Type() *async.Type {
-	return async.ReflectType("pizza.ConfirmedOrder", s)
+	return async.ReflectType(fmt.Sprintf("%s.ConfirmedOrder", serviceName), s)
 }
 
 // this is a state of our workflow that will be persistet between callbacks(methods)
@@ -43,7 +43,7 @@ type OrderPizzaProcess struct {
 }
 
 func (s OrderPizzaProcess) Type() *async.Type {
-	return async.ReflectType("pizza.OrderPizzaProcess", s)
+	return async.ReflectType(fmt.Sprintf("%s.OrderPizzaProcess", serviceName), s)
 }
 
 // This is main() function for our process   (To be renamed to Main() in future)

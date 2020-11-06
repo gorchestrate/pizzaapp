@@ -47,7 +47,7 @@ func (s Service) NewOrderHandler(w http.ResponseWriter, r *http.Request) {
 	_, err = s.c.NewProcess(context.Background(), &async.NewProcessReq{
 		Call: &async.Call{
 			Id:    mux.Vars(r)["id"],
-			Name:  "pizza.OrderPizza()",
+			Name:  fmt.Sprintf("%s.OrderPizza()", serviceName),
 			Input: body,
 		},
 	})

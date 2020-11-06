@@ -1,7 +1,31 @@
 # pizzaapp
 Example app using Gorchestrate to manage pizza ordering
 
-This shows how synchronous calls via Rest(UI) can be combined with gorchestrate async processing.
+## Usage
+Run service in terminal:
+```
+go run .
+```
+
+Create new PizzaOrderProcess
+```
+curl -X POST http://localhost:8080/order/1 -d '{"ManagerEmail": "YourEmailAddress@gmail.com","Phone": "+12345678","Pizzas": [{"Name":"Pepperoni", "Size":1}]}'
+```
+
+Check Process status:
+```
+curl -X GET http://localhost:8080/order/1
+{"Output":null,"Status":"Running"}
+```
+
+You will receive mail that is asking to approve your order. You can either approve it by replying with "Approve" or reject by typing "Reject"
+Or can cancel your order by calling
+```
+curl -X POST http://localhost:8080/order/1/cancel
+curl -X GET http://localhost:8080/order/1
+{"Output":{"Order":{"Pizzas":[{"Name":"Pepperoni","Size":1}],"Phone":"+375298468489","ManagerEmail":"artem.gladkikh@idt.net"},"Approved":false,"Message":"order was canceled by user"},"Status":"Finished"}
+```
+
 
 ## FAQ
 
