@@ -53,7 +53,7 @@ Throughtput:
 * Bigger workflows states make API thoughput go down propotionally to their size
 
 Latency:
-* Latencies between event happening and callback being called are 10-20ms
+* Latencies between event happening and callback being called are ~20ms. If one process is waiting for another one - callback for it will be called ~20ms after first one has finished.
 * Increasing throughput should not increase latency up to a certain point. After that latencies will go up, limited by max thoughput server can sustain.
 
 Stability:
