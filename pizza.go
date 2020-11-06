@@ -51,8 +51,8 @@ func (s OrderPizzaProcess) Type() *async.Type {
 
 // This is main() function for our process   (To be renamed to Main() in future)
 func (s *OrderPizzaProcess) Start(p *async.P, order Order) error {
-	s.Order = order                        // store inputs in process state
-	s.Cancel = p.MakeChan(order.Type(), 0) // create channel that will be used to cancel pizza order
+	s.Order = order                        // store order in workflow state for future use
+	s.Cancel = p.MakeChan(order.Type(), 0) // create channel to cancel pizza order
 
 	log.Print("You can execute arbitrary code in the callback. For example saving order in DB")
 	err := s.DB.Update(func(t *bolt.Tx) error {
