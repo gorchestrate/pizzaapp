@@ -2,7 +2,7 @@
 Example app using Gorchestrate to manage pizza ordering
 
 ## Usage
-Run service in terminal:
+Run service in a separate terminal:
 ```
 go run .
 ```
@@ -18,14 +18,12 @@ curl -X GET http://localhost:8080/order/1
 {"Output":null,"Status":"Running"}
 ```
 
-You will receive mail that is asking to approve your order. You can either approve it by replying with "Approve" or reject by typing "Reject"
-Or can cancel your order by calling
+You will receive mail that is asking to approve your order (it may go into Spam). You can either approve it by replying with "Approve" or reject by typing "Reject" or you can cancel order by calling
 ```
 curl -X POST http://localhost:8080/order/1/cancel
 curl -X GET http://localhost:8080/order/1
 {"Output":{"Order":{"Pizzas":[{"Name":"Pepperoni","Size":1}],"Phone":"+375298468489","ManagerEmail":"artem.gladkikh@idt.net"},"Approved":false,"Message":"order was canceled by user"},"Status":"Finished"}
 ```
-
 
 ## FAQ
 
@@ -42,6 +40,12 @@ With Gorchstrate - you model and execute your workflow logic using code, and onl
 
 You can create **your** library for **your** programming language to model processes the way **you** want.
 You may even integrate existing workflow engines to communicate with Gorchestrate.
+
+#### What are guarantees related to process execution?
+* Linearized consistency for all communications between all processes within single Gorchestrate Core instance.
+* Strong consistency for all write operations. Any read following write will return up-to-date data.
+* Callbacks are called in the order they were triggered. Only one callback gets unblocked in a single point of time (except callback is taking longer time for execution than expected)
+* Update to process is atomic. All Recv/Send/Call operations are either succeed or fail.
 
 #### Why we have to define callbacks for each step in our workflow? Can we implement workflows in a simpler way?
 The main reason for **async** library API design is simplicity. FSM-based design allows people to adapt to framework quickly.
