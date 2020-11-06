@@ -53,11 +53,12 @@ Throughtput:
 * Bigger workflows states make API thoughput go down propotionally to their size
 
 Latency:
+* Latencies for typical request are ~20ms under small load.
 * Latencies between event happening and callback being called are ~20ms. If one process is waiting for another one - callback for it will be called ~20ms after first one has finished.
 * Increasing throughput should not increase latency up to a certain point. After that latencies will go up, limited by max thoughput server can sustain.
 
 Stability:
-* Max throughput decreases with database size. From latest benchmarks it drops 2x after 1 billion of records written.
+* Max throughput decreases with database size. From benchmarks on my PC it drops 2x after 1 billion of records written.
 
 #### Why we have to define callbacks for each step in our workflow? Can we implement workflows in a simpler way?
 The main reason for **async** library API design is simplicity. FSM-based design allows people to adapt to framework quickly.
