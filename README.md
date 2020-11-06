@@ -48,8 +48,16 @@ You can create **your** library for **your** programming language to model proce
 You may even integrate existing workflow engines to communicate with Gorchestrate.
 
 #### What performance I can expect from Gorchestrate?
-With small size of workflows state you can expect continious >10,000 req/sec performance on a typical server.
-Main bottleneck is payload size. Bigger workflows states make API operation slower.
+Throughtput:
+* With small size of workflows state you can expect continious >10,000 req/sec performance on a typical server
+* Bigger workflows states make API thoughput go down propotionally to their size
+
+Latency:
+* Latencies between event happening and callback being called are 10-20ms
+* Increasing throughput should not increase latency up to a certain point. After that latencies will go up, limited by max thoughput server can sustain.
+
+Stability:
+* Max throughput decreases with database size. From latest benchmarks it drops 2x after 1 billion of records written.
 
 #### Why we have to define callbacks for each step in our workflow? Can we implement workflows in a simpler way?
 The main reason for **async** library API design is simplicity. FSM-based design allows people to adapt to framework quickly.
