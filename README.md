@@ -1,6 +1,12 @@
 # pizzaapp
 Example app using Gorchestrate to manage pizza ordering
 
+**pizza.go** contains the workflow definition. 
+
+**main.go** is a setup code for the service
+
+**handler.go** wraps gorchestrate core interaction with a nice REST API.
+
 ## Usage
 Run service in a separate terminal:
 ```

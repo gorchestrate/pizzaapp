@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"time"
 
+	"github.com/boltdb/bolt"
 	"github.com/gorchestrate/async"
 	"github.com/gorchestrate/mail-plugin"
 )
@@ -37,6 +39,7 @@ func (s ConfirmedOrder) Type() *async.Type {
 
 // this is a state of our workflow that will be persistet between callbacks(methods)
 type OrderPizzaProcess struct {
+	DB      *bolt.DB `json:"-"`
 	Order   Order
 	Cancel  async.Channel
 	Thread2 string
@@ -50,6 +53,21 @@ func (s OrderPizzaProcess) Type() *async.Type {
 func (s *OrderPizzaProcess) Start(p *async.P, order Order) error {
 	s.Order = order                        // store inputs in process state
 	s.Cancel = p.MakeChan(order.Type(), 0) // create channel that will be used to cancel pizza order
+
+	log.Print("You can execute arbitrary code in the callback. For example saving order in DB")
+	err := s.DB.Update(func(t *bolt.Tx) error {
+		b, err := t.CreateBucketIfNotExists([]byte("orders"))
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(order.Phone), []byte("saved order body"))
+	})
+	if err != nil {
+		return err
+		// returning error from Async process means process has failed to execute.
+		// it does not change the state of the process - callback will be retried after some time
+		// all execution/connectivity errors are handled here. All business-level errors should be returned via p.Finish()
+	}
 
 	p.Go("Thread2", func(p *async.P) { // create new thread in our workflow(process) that will manage cancellation
 		p.After(time.Second * 1800).To(s.Aborted)

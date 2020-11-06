@@ -3,6 +3,7 @@ module github.com/gorchestrate/pizzaapp
 go 1.13
 
 require (
+	github.com/boltdb/bolt v1.3.1
 	github.com/gorchestrate/async v0.1.0
 	github.com/gorchestrate/mail-plugin v0.0.0-20201103102343-c76682338ec8
 	github.com/gorchestrate/twilio-plugin v0.1.2

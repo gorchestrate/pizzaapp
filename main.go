@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/boltdb/bolt"
 	"github.com/gorchestrate/async"
 	"github.com/gorilla/mux"
 	"golang.org/x/net/context"
@@ -49,6 +50,12 @@ func main() {
 		}
 	}()
 
+	db, err := bolt.Open("orders.db", 0600, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
 	service := async.Service{
 		// Name of the service.
 		// Two different service instances won't affect each other's performance
@@ -70,7 +77,9 @@ func main() {
 				// This is a constructor for process struct to which current process(workflow) state will be unmarshalled to
 				// You may want to set here external connections, db clients, and other data you may need inside process(workflow) definition callbacks
 				NewProcState: func() interface{} {
-					return &OrderPizzaProcess{}
+					return &OrderPizzaProcess{
+						DB: db,
+					}
 				},
 				API: &async.ProcessAPI{
 					// Process name should be in format serviceName.ProcessName()
