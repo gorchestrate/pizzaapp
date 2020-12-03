@@ -13,6 +13,11 @@ Run service in a separate terminal:
 SERVICE_NAME=PutYourUniqueServiceNameHere go run .
 ```
 
+If you don't have Go installed you can run via docker:
+```
+docker build -t pizzaapp . && docker run -p 8080:8080 -it pizzaapp
+```
+
 Create new PizzaOrderProcess
 ```
 curl -X POST http://localhost:8080/order/1 -d '{"ManagerEmail": "YourEmailAddress@gmail.com","Phone": "+12345678","Pizzas": [{"Name":"Pepperoni", "Size":1}]}'

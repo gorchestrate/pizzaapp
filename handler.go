@@ -44,7 +44,7 @@ func (s Service) NewOrderHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	body, _ := json.Marshal(o)
-	_, err = s.c.NewProcess(context.Background(), &async.NewProcessReq{
+	_, err = s.c.NewWorkflow(context.Background(), &async.NewWorkflowReq{
 		Call: &async.Call{
 			Id:    mux.Vars(r)["id"],
 			Name:  fmt.Sprintf("%s.OrderPizza()", serviceName),
@@ -57,18 +57,18 @@ func (s Service) NewOrderHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s Service) CancelOrderHandler(w http.ResponseWriter, r *http.Request) {
-	p, err := s.c.GetProcess(r.Context(), &async.GetProcessReq{
+	p, err := s.c.GetWorkflow(r.Context(), &async.GetWorkflowReq{
 		Id: mux.Vars(r)["id"],
 	})
 	if err != nil {
 		fmt.Fprintf(w, "error creating process: %v", err)
 		return
 	}
-	if p.Status != async.Process_Running {
+	if p.Status != async.Workflow_Running {
 		fmt.Fprintf(w, "canceling process that is not running")
 		return
 	}
-	var op OrderPizzaProcess
+	var op OrderPizzaWorkflow
 	err = json.Unmarshal(p.State, &op)
 	if err != nil {
 		panic(err)
@@ -86,7 +86,7 @@ func (s Service) CancelOrderHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s Service) GetOrderHandler(w http.ResponseWriter, r *http.Request) {
-	p, err := s.c.GetProcess(r.Context(), &async.GetProcessReq{
+	p, err := s.c.GetWorkflow(r.Context(), &async.GetWorkflowReq{
 		Id: mux.Vars(r)["id"],
 	})
 	if err != nil {

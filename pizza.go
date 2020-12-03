@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"strings"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -10,104 +10,71 @@ import (
 	"github.com/gorchestrate/mail-plugin"
 )
 
-type Pizza struct {
-	Name string
-	Size int
-}
+func (s *OrderPizzaWorkflow) Main(p *async.P, order Order) error {
+	//you have full control over current state of the workflow
+	//Everything assigned to workflow struct will be automatically persisted by Gorchestrate
+	s.Order = order
 
-type Order struct {
-	Pizzas       []Pizza
-	Phone        string
-	ManagerEmail string
-}
+	//you can use this to manage statuses in a way that works for you
+	s.State = "Started"
 
-// type definition for gorchestrate core.
-func (s Order) Type() *async.Type {
-	// here we simply generating one using reflection
-	return async.ReflectType(fmt.Sprintf("%s.Order", serviceName), s)
-}
-
-type ConfirmedOrder struct {
-	Order    Order
-	Approved bool
-	Message  string
-}
-
-func (s ConfirmedOrder) Type() *async.Type {
-	return async.ReflectType(fmt.Sprintf("%s.ConfirmedOrder", serviceName), s)
-}
-
-// this is a state of our workflow that will be persistet between callbacks(methods)
-type OrderPizzaProcess struct {
-	DB      *bolt.DB `json:"-"`
-	Order   Order
-	Cancel  async.Channel
-	Thread2 string
-}
-
-func (s OrderPizzaProcess) Type() *async.Type {
-	return async.ReflectType(fmt.Sprintf("%s.OrderPizzaProcess", serviceName), s)
-}
-
-// This is main() function for our process   (To be renamed to Main() in future)
-func (s *OrderPizzaProcess) Start(p *async.P, order Order) error {
-	s.Order = order                        // store order in workflow state for future use
-	s.Cancel = p.MakeChan(order.Type(), 0) // create channel to cancel pizza order
-
-	log.Print("You can execute arbitrary code in the callback. For example saving order in DB")
-	err := s.DB.Update(func(t *bolt.Tx) error {
-		b, err := t.CreateBucketIfNotExists([]byte("orders"))
-		if err != nil {
-			return err
-		}
+	// you can execute any code you want in the process. For example save record to DB
+	_ = s.DB.Update(func(t *bolt.Tx) error {
+		b, _ := t.CreateBucketIfNotExists([]byte("orders"))
 		return b.Put([]byte(order.Phone), []byte("saved order body"))
 	})
-	if err != nil {
-		return err
-		// returning error from Async process means process has failed to execute.
-		// it does not change the state of the process - callback will be retried after some time
-		// all execution/connectivity errors are handled here. All business-level errors should be returned via p.Finish()
+
+	// you can have any custom logic inside your code. No need to draw diagrams
+	if len(s.Order.Pizzas) < 100 {
+		// you can call other workflows inside your workflow
+		mail.SendAndWaitAnswer(p, mail.Message{
+			To:      order.ManagerEmail,
+			CC:      []string{},
+			Subject: "Please approve pizza order",
+			Message: fmt.Sprintf("Please approve order (reply with 'Approved'): \n\n Pizzas: %v Phone: %v", order.Pizzas, order.Phone),
+		}).To(s.Answered)
+	} else {
+		// you can finish your workflow at any time
+		p.Finish(ConfirmedOrder{
+			Order:    s.Order,
+			Approved: false,
+			Message:  "We don't accept such big orders",
+		})
+		return nil
 	}
 
-	p.Go("Thread2", func(p *async.P) { // create new thread in our workflow(process) that will manage cancellation
-		p.After(time.Second * 1800).To(s.Aborted)
-		p.Recv(s.Cancel).To(s.Canceled)
-	})
-	// this is equivalent to
-	// go func() {
-	//	 select {
-	//	   case <-time.After(time.Second * 1800):
-	//	      s.Aborted()
-	//	   case <-s.Cancel:
-	//	      s.Canceled()
-	//	}
-	//}()
-
-	p.Call("mail.Approve()", mail.ApprovalRequest{
-		Message: fmt.Sprintf("Please approve order (reply with 'Approved'): \n\n Pizzas: %v Phone: %v", order.Pizzas, order.Phone),
-		To:      []string{order.ManagerEmail},
-	}).To(s.Done)
-	// gorchestrate ensures that s.Done() callback expects same type that the called method returns
-	// if s.Done() expects different type than mail.Approve() returns - gorchestrate will refuse to make a call
-	// This type-safety is ensured API calls and channels operations.
-
-	// After callback has finished - current workflow state and blocked conditions (calls, sends,recvs) will be sent to Gorchestrate Core, validated and saved.
-	return nil
-}
-
-// Callback defines the type it's expecting
-func (s *OrderPizzaProcess) Done(p *async.P, resp mail.ApprovalResponse) error {
-	// mark this process as finished
-	// if process was doing recv/send on channel - this select will be aborted (if it wasn't triggered already)
-	p.Finish(ConfirmedOrder{
-		Order:    s.Order,
-		Approved: resp.Approved,
-		Message:  resp.Comments,
+	// you can run multiple goroutines in you workflow
+	p.Go("Thread2", func(p *async.P) {
+		// you can manage concurrency same way you do it in Go - using channels, timeouts and etc...
+		s.Cancel = p.MakeChan(order.Type(), 0)
+		p.Select().
+			After(time.Second * 1800).To(s.Aborted).
+			Recv(s.Cancel).To(s.Canceled)
 	})
 	return nil
 }
 
-func (s *OrderPizzaProcess) Aborted(p *async.P) error {
+func (s *OrderPizzaWorkflow) Answered(p *async.P, resp mail.Message) error {
+	if strings.Contains(resp.Message, "Approved") {
+		s.State = "Approved"
+		p.Finish(ConfirmedOrder{
+			Order:    s.Order,
+			Approved: true,
+			Message:  resp.Message,
+		})
+		return nil
+	}
+	mail.SendAndWaitAnswer(p, mail.Message{
+		To:      s.Order.ManagerEmail,
+		CC:      []string{},
+		Subject: "Please approve pizza order again",
+		Message: fmt.Sprintf("Please approve order (reply with 'Approved'): \n\n Pizzas: %v Phone: %v", s.Order.Pizzas, s.Order.Phone),
+	}).To(s.Answered)
+	return nil
+}
+
+func (s *OrderPizzaWorkflow) Aborted(p *async.P) error {
+	s.State = "Aborted"
 	p.Finish(ConfirmedOrder{
 		Order:    s.Order,
 		Approved: false,
@@ -116,7 +83,8 @@ func (s *OrderPizzaProcess) Aborted(p *async.P) error {
 	return nil
 }
 
-func (s *OrderPizzaProcess) Canceled(p *async.P) error {
+func (s *OrderPizzaWorkflow) Canceled(p *async.P) error {
+	s.State = "Canceled"
 	p.Finish(ConfirmedOrder{
 		Order:    s.Order,
 		Approved: false,

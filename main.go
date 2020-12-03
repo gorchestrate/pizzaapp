@@ -57,49 +57,26 @@ func main() {
 	defer db.Close()
 
 	service := async.Service{
-		// Name of the service.
-		// Two different service instances won't affect each other's performance
-		// Service Name is also used to filter and consume event history just for your service.
 		Name: fmt.Sprintf("%s", serviceName),
-
-		// Each service is like a Go package - defines it's types and methods(APIs)
-		// All requests to gorchestrate core will validate calls to comply with types defined here
-		// If someone sends a request with invalid type - request will be rejected before it reaches your service
 		Types: []*async.Type{
-			async.ReflectType(fmt.Sprintf("%s.Order", serviceName), &Order{}),
-			async.ReflectType(fmt.Sprintf("%s.ConfirmedOrder", serviceName), &ConfirmedOrder{}),
-			async.ReflectType(fmt.Sprintf("%s.OrderPizzaProcess", serviceName), &OrderPizzaProcess{}),
+			Order{}.Type(),
+			ConfirmedOrder{}.Type(),
+			OrderPizzaWorkflow{}.Type(),
 		},
-
-		// APIs define processes(workflows) that this service supports
 		APIs: []async.API{
 			{
-				// This is a constructor for process struct to which current process(workflow) state will be unmarshalled to
-				// You may want to set here external connections, db clients, and other data you may need inside process(workflow) definition callbacks
 				NewProcState: func() interface{} {
-					return &OrderPizzaProcess{
+					return &OrderPizzaWorkflow{
 						DB: db,
 					}
 				},
-				API: &async.ProcessAPI{
-					// Process name should be in format serviceName.ProcessName()
+				API: &async.WorkflowAPI{
 					Name:        fmt.Sprintf("%s.OrderPizza()", serviceName),
 					Description: "Order new pizza",
-
-					// Input type is used to validate request that want to create new process
-					// So that this process receives correct inputs
-					Input: fmt.Sprintf("%s.Order", serviceName),
-					// Output type is used to validate output of this process.
-					// So that clients who receive result of this process get expected result
-					Output: fmt.Sprintf("%s.ConfirmedOrder", serviceName),
-
-					// Description of the process state. This is used to make sure that all updates to the process are type-safe.
-					// It also makes sure that all changes to process state type are backward-compatible and clients
-					// who listening for process updated events receive correct type-safe stream of data
-					State: fmt.Sprintf("%s.OrderPizzaProcess", serviceName),
-
-					Service: fmt.Sprintf("%s", serviceName), // Duplicated field yo be removed
-
+					Input:       fmt.Sprintf("%s.Order", serviceName),
+					Output:      fmt.Sprintf("%s.ConfirmedOrder", serviceName),
+					State:       fmt.Sprintf("%s.OrderPizzaWorkflow", serviceName),
+					Service:     fmt.Sprintf("%s", serviceName),
 				},
 			},
 		},
