@@ -1,12 +1,9 @@
 module github.com/gorchestrate/pizzaapp
 
-go 1.13
+go 1.16
 
 require (
-	github.com/boltdb/bolt v1.3.1
-	github.com/gorchestrate/async v0.2.2
-	github.com/gorchestrate/mail-plugin v0.1.13
-	github.com/gorilla/mux v1.8.0
-	golang.org/x/net v0.0.0-20201031054903-ff519b6c9102
-	google.golang.org/grpc v1.33.1
+	cloud.google.com/go/firestore v1.5.0
+	github.com/gorchestrate/async v0.5.3
+	google.golang.org/api v0.47.0
 )
