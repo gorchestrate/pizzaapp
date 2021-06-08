@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
@@ -10,15 +11,15 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/gorchestrate/async"
+	"github.com/gorilla/mux"
 	cloudtasks "google.golang.org/api/cloudtasks/v2beta3"
 )
 
-var S = async.S
-var Select = async.Select
-var After = async.After
-var Step = async.Step
-var On = async.On
-var For = async.For
+// Basic UI using jsonschema (separate module to do that? Need support subworkflows?)
+
+// Everything is a workflow! i.e. event-sourcing approach for syncing up settings
+// and other events. How to do that?
+//
 
 func main() {
 	rand.Seed(time.Now().Unix())
@@ -31,36 +32,50 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	// TODO: separate workflows. Each one has it's own runner.
-	// it's easy to do that because we have no loops
-
-	// TODO: do less resumes. Just save data - no need to unlock
-	// need to unlock only if WAITING
-	// TO make this - resumes should be step-agnostic?
-	// No problem resuming thread at any point of time, if no resuming is possible - just log err
-
-	r, err := async.NewRunner(async.RunnerConfig{
-		BaseURL:    "https://pizzaapp-ffs2ro4uxq-uc.a.run.app",
-		ProjectID:  "async-315408",
-		LocationID: "us-central1",
-		Collection: "orders",
-		QueueName:  "order",
+	r := async.Runner{
+		DB: FirestoreStorage{
+			DB:         db,
+			Collection: "orders",
+		},
+		TaskMgr: CloudTaskManager{
+			C:           cTasks,
+			ProjectID:   "async-315408",
+			LocationID:  "us-central1",
+			QueueName:   "order",
+			ResumeURL:   "https://pizzaapp-ffs2ro4uxq-uc.a.run.app/resume",
+			CallbackURL: "https://pizzaapp-ffs2ro4uxq-uc.a.run.app/callback",
+		},
 		Workflows: map[string]async.Workflow{
-			"order": {
-				Name: "order",
-				InitState: func() async.WorkflowState {
-					return &PizzaOrderWorkflow{}
-				},
+			"order": func() async.WorkflowState {
+				return &PizzaOrderWorkflow{}
 			},
 		},
-	}, db, cTasks)
-	if err != nil {
-		panic(err)
 	}
-	mr := r.Router()
+	mr := mux.NewRouter()
 	mr.HandleFunc("/new", func(rw http.ResponseWriter, req *http.Request) {
 		err = r.NewWorkflow(context.Background(), fmt.Sprint(rand.Intn(10000)), "order", PizzaOrderWorkflow{})
+		if err != nil {
+			panic(err)
+		}
+	})
+	mr.HandleFunc("/resume", func(rw http.ResponseWriter, req *http.Request) {
+		var resume async.ResumeRequest
+		err := json.NewDecoder(req.Body).Decode(&resume)
+		if err != nil {
+			panic(err)
+		}
+		err = r.OnResume(req.Context(), resume)
+		if err != nil {
+			panic(err)
+		}
+	})
+	mr.HandleFunc("/callback", func(rw http.ResponseWriter, req *http.Request) {
+		var cb async.CallbackRequest
+		err := json.NewDecoder(req.Body).Decode(&cb)
+		if err != nil {
+			panic(err)
+		}
+		err = r.OnCallback(req.Context(), cb)
 		if err != nil {
 			panic(err)
 		}
@@ -79,6 +94,7 @@ type PizzaOrderWorkflow struct {
 	Status       string
 	Request      PizzaOrderRequest
 	I            int
+	PI           int
 	Wg           int
 }
 
@@ -98,24 +114,53 @@ type PizzaOrderRequest struct {
 	Pizzas    []Pizza
 }
 
-func (e *PizzaOrderWorkflow) Definition() async.WorkflowDefinition {
-	return async.WorkflowDefinition{
-		New: func(req PizzaOrderRequest) (*PizzaOrderResponse, error) {
-			// POST /pizza/:id
-			log.Printf("got pizza order")
-			return &PizzaOrderResponse{}, nil
-		},
-		Body: S(
-			For(e.I < 100, "loodp", S(
-				Step("inside Loop", func() async.ActionResult {
-					log.Print("LOOP")
-					e.I++
+var S = async.S
+var Select = async.Select
+var After = async.After
+var Step = async.Step
+var On = async.On
+var For = async.For
+
+func UserAction(input string) []async.WaitCond {
+	return []async.WaitCond{}
+}
+
+func (e *PizzaOrderWorkflow) Definition() async.Section {
+	return S(
+		For(e.I < 100, "loodp", S(
+			Step("inside Loop", func() async.ActionResult {
+				log.Print("LOOP ", e.I)
+				e.I++
+				return async.ActionResult{Success: true}
+			}),
+		)),
+		Step("outside wait loop", func() async.ActionResult {
+			log.Print("eeee ", e.I)
+			e.I = 0
+			return async.ActionResult{Success: true}
+		}),
+		For(e.I < 10, "loodpd", S(
+			Step("inside wait loopd", func() async.ActionResult {
+				log.Print("LOOP2 ", e.I)
+				e.I++
+				return async.ActionResult{Success: true}
+			}),
+			async.Go("parallel", S(
+				Select("wait in loop",
+					async.After(time.Second*5, S()),
+				),
+				Step("inside wait loopd goroutine", func() async.ActionResult {
+					log.Print("INSIDE LOOP! ", e.I)
+					e.PI++
 					return async.ActionResult{Success: true}
 				}),
-			)),
-			async.Return("end"),
+			), func() string { return fmt.Sprint(e.I) + "_thread" }),
+		)),
+		Select("wait 1 minute loop",
+			async.After(time.Minute, S()),
 		),
-	}
+		async.Return("end"),
+	)
 }
 
 // Add WAIT() condition function that is evaluated  each time after process is updated
@@ -124,12 +169,6 @@ func (e *PizzaOrderWorkflow) Definition() async.WorkflowDefinition {
 
 /*
 // GCLOUD:
-Firestore as storage
-	- Optimistic locking
-Cloud tasks to delay time.After
-	- if select canceled - we try to cancel task
-		- if can't cancel - no problem - it should cancel itself
-
 Context canceling?
 	- Canceling is batch write operation, updates both task and canceled ctx
 	- After ctx has been updated via cloud - we create cloud tasks for each workflow to update
@@ -139,7 +178,6 @@ Context canceling?
 
 
 // CONCLUSION:
-	- TRY OUT FIRESTORE & Cloud Tasks time.After
 	- PERFECT CLIENTSIDE LIBRARY
 	- WAIT FOR JUNE & CHECK HOW EVENT ARC UPDATE NOTIFYING WORKS (latency)
 

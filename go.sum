@@ -192,11 +192,6 @@ github.com/googleapis/gax-go/v2 v2.0.4/go.mod h1:0Wqv26UfaUD9n4G6kQubkQ+KchISgw+
 github.com/googleapis/gax-go/v2 v2.0.5 h1:sjZBwGj9Jlw33ImPtvFviGYvseOtDM7hkSKB7+Tv3SM=
 github.com/googleapis/gax-go/v2 v2.0.5/go.mod h1:DWXyrwAJ9X0FpwwEdw+IPEYBICEFu5mhpdKc/us6bOk=
 github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
-github.com/gorchestrate/async v0.1.0/go.mod h1:u15mDsR3CEYrE0j+RVHs5P9ubVWpxGxq8twxLOE8psQ=
-github.com/gorchestrate/async v0.5.2 h1:9jRdnntNbOh7EZtbcok5/13ZCtrMRhT9yZnSeBRghPY=
-github.com/gorchestrate/async v0.5.2/go.mod h1:K4wIVNLbLxNcp0muLcH+2Y3q6WYyzZpQHJa1Vu1xSYA=
-github.com/gorchestrate/async v0.5.3 h1:1N37sW/Rwp0Hq0FwIkrNYnOysdyzRyOQGotK5LxqnzI=
-github.com/gorchestrate/async v0.5.3/go.mod h1:K4wIVNLbLxNcp0muLcH+2Y3q6WYyzZpQHJa1Vu1xSYA=
 github.com/gorchestrate/mail-plugin v0.0.0-20201103102343-c76682338ec8/go.mod h1:qSkb9RqFz9072gp4iJ91K6KtOO//Kw1qAod8IuZy5oc=
 github.com/gorilla/mux v1.8.0 h1:i40aqfkR1h2SlN9hojwV5ZA91wcXFOvkdNIeFDP5koI=
 github.com/gorilla/mux v1.8.0/go.mod h1:DVbg23sWSpFRCP0SfiEN6jmj59UnW/n46BH5rLB71So=
@@ -773,7 +768,6 @@ google.golang.org/grpc v1.29.1/go.mod h1:itym6AZVZYACWQqET3MqgPpjcuV5QH3BxFS3Iji
 google.golang.org/grpc v1.30.0/go.mod h1:N36X2cJ7JwdamYAgDz+s+rVMFjt3numwzf/HckM8pak=
 google.golang.org/grpc v1.31.0/go.mod h1:N36X2cJ7JwdamYAgDz+s+rVMFjt3numwzf/HckM8pak=
 google.golang.org/grpc v1.31.1/go.mod h1:N36X2cJ7JwdamYAgDz+s+rVMFjt3numwzf/HckM8pak=
-google.golang.org/grpc v1.33.1/go.mod h1:fr5YgcSWrqhRRxogOsw7RzIpsmvOZ6IcH4kBYTpR3n0=
 google.golang.org/grpc v1.33.2/go.mod h1:JMHMWHQWaTccqQQlmk3MJZS+GWXOdAesneDmEnv2fbc=
 google.golang.org/grpc v1.34.0/go.mod h1:WotjhfgOW/POjDeRt8vscBtXq+2VjORFy659qA51WJ8=
 google.golang.org/grpc v1.35.0/go.mod h1:qjiiYl8FncCW8feJPdyg3v6XW24KsRHe+dy9BAGRRjU=
