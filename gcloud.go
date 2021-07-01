@@ -12,7 +12,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/gorchestrate/async"
-	"google.golang.org/api/cloudtasks/v2"
+	cloudtasks "google.golang.org/api/cloudtasks/v2beta3"
 )
 
 type CloudTasksResumer struct {

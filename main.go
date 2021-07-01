@@ -12,15 +12,8 @@ import (
 	"cloud.google.com/go/firestore"
 	"github.com/gorchestrate/async"
 	"github.com/gorilla/mux"
-	"google.golang.org/api/cloudtasks/v2"
-	// cloudtasks "google.golang.org/api/cloudtasks/v2beta3"
+	cloudtasks "google.golang.org/api/cloudtasks/v2beta3"
 )
-
-// Basic UI using jsonschema (separate module to do that? Need support subworkflows?)
-
-// Everything is a workflow! i.e. event-sourcing approach for syncing up settings
-// and other events. How to do that?
-//
 
 var S = async.S
 var Wait = async.Wait
@@ -172,28 +165,27 @@ func (e *PizzaOrderWorkflow) Definition() async.Section {
 	)
 }
 
-// Add WAIT() condition function that is evaluated  each time after process is updated
-// useful to simulate sync.WorkGroup
+// Basic UI using jsonschema (separate module to do that? Need support subworkflows?)
+
+// Everything is a workflow! i.e. event-sourcing approach for syncing up settings
+// and other events. How to do that?
+//
+
+// Add WAIT() condition function that is evaluated  each time after parallel thread is updated
+// useful to simulate sync.WorkGroup ???
 // can be added to Select() stmt
 
 /*
 // GCLOUD:
-Context canceling?
-	- Canceling is batch write operation, updates both task and canceled ctx
-	- After ctx has been updated via cloud - we create cloud tasks for each workflow to update
-		all processes that were affected. (for now can be done as post-action, later listen for event)
-	- We also monitor writes for all processes and if they have new ctx added
-		we will create cloud task for them. (for now can be done as post-action, later listen for event)
+Context canceling - separate CallbackManager & Handler.
+	WaitCtx():
+		SETUP:() add to DB (conditionally)
+			If ctx is already canceled - create task for cancellation
+		Teardown(): remove from DB
+		When canceling Ctx - mark ctx as canceled(intermediate status) and create task to cancel each of Setup() processes
 
 
-// CONCLUSION:
-	- PERFECT CLIENTSIDE LIBRARY
-	- WAIT FOR JUNE & CHECK HOW EVENT ARC UPDATE NOTIFYING WORKS (latency)
-
-
-Sending/Receiving channels:
-	JUST DO IN-PROCESS channels
-	AND IN-PROCESS WAIT
+Sending/Receiving channels - separate service/library for that.
 */
 
 // Add channels? not sure we need them.

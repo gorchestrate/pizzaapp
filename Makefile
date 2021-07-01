@@ -4,4 +4,4 @@ push:
 	docker build -t ${IMAGE} .
 	gcloud docker -- push ${IMAGE}
 	gcloud run deploy pizzaapp --image  ${IMAGE} --platform=managed --region=us-central1 \
-		--allow-unauthenticated 
+		--allow-unauthenticated --set-env-vars=GOOGLE_RUN=true
