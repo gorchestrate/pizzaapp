@@ -13,11 +13,11 @@ type LocalResumer struct {
 	r *async.Runner
 }
 
-func (gr *LocalResumer) ScheduleResume(r *async.Runner, id string) error {
+func (gr *LocalResumer) ScheduleExecution(r *async.Runner, id string) error {
 	log.Print("scheduling resume")
 	go func() {
 		for i := 0; i < 10; i++ {
-			err := r.Resume(context.Background(), time.Second*10, 10000, id)
+			err := r.Execute(context.Background(), time.Second*10, 10000, id)
 			if err != nil {
 				log.Printf("err resuming %v: %v", id, err)
 				time.Sleep(time.Second * 1)

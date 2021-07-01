@@ -126,40 +126,40 @@ type PizzaOrderRequest struct {
 
 func (e *PizzaOrderWorkflow) Definition() async.Section {
 	return S(
-		Step("start", func() async.ActionResult {
+		Step("start", func() error {
 			log.Print("eeee ")
-			return async.ActionResult{Success: true}
+			return nil
 		}),
 		If(!e.IsAuthorized,
-			Step("do auth", func() async.ActionResult {
+			Step("do auth", func() error {
 				log.Print("Do AUTH ")
-				return async.ActionResult{Success: true}
+				return nil
 			}),
 		),
 		Wait("timeout select",
 			On("timeout1", &TimeoutHandler{Delay: time.Second * 3},
-				Step("start3", func() async.ActionResult {
+				Step("start3", func() error {
 					log.Print("eeee ")
-					return async.ActionResult{Success: true}
+					return nil
 				}),
-				Step("start4", func() async.ActionResult {
+				Step("start4", func() error {
 					log.Print("eeee222 ")
-					return async.ActionResult{Success: true}
+					return nil
 				}),
 			),
 			On("timeout2", &TimeoutHandler{Delay: time.Second * 3},
-				Step("start113", func() async.ActionResult {
+				Step("start113", func() error {
 					log.Print("222eeee ")
-					return async.ActionResult{Success: true}
+					return nil
 				}),
-				Step("start3334", func() async.ActionResult {
+				Step("start3334", func() error {
 					log.Print("222eeee222 ")
-					return async.ActionResult{Success: true}
+					return nil
 				}),
 			)),
-		Step("start2", func() async.ActionResult {
+		Step("start2", func() error {
 			log.Print("tttttt ")
-			return async.ActionResult{Success: true}
+			return nil
 		}),
 		async.Return("end"),
 	)
