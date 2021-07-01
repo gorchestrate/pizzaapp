@@ -2,17 +2,18 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"time"
 
 	"cloud.google.com/go/firestore"
 	"github.com/gorchestrate/async"
 	"github.com/gorilla/mux"
-	cloudtasks "google.golang.org/api/cloudtasks/v2beta3"
+	"google.golang.org/api/cloudtasks/v2"
+	// cloudtasks "google.golang.org/api/cloudtasks/v2beta3"
 )
 
 // Basic UI using jsonschema (separate module to do that? Need support subworkflows?)
@@ -21,29 +22,28 @@ import (
 // and other events. How to do that?
 //
 
+var S = async.S
+var Wait = async.Wait
+var Step = async.Step
+var For = async.For
+var On = async.On
+
 func main() {
 	rand.Seed(time.Now().Unix())
 	ctx := context.Background()
-	cTasks, err := cloudtasks.NewService(ctx)
-	if err != nil {
-		panic(err)
-	}
 	db, err := firestore.NewClient(ctx, "async-315408")
 	if err != nil {
 		panic(err)
 	}
+	cTasks, err := cloudtasks.NewService(ctx)
+	if err != nil {
+		panic(err)
+	}
+
 	r := async.Runner{
 		DB: FirestoreStorage{
 			DB:         db,
 			Collection: "orders",
-		},
-		TaskMgr: CloudTaskManager{
-			C:           cTasks,
-			ProjectID:   "async-315408",
-			LocationID:  "us-central1",
-			QueueName:   "order",
-			ResumeURL:   "https://pizzaapp-ffs2ro4uxq-uc.a.run.app/resume",
-			CallbackURL: "https://pizzaapp-ffs2ro4uxq-uc.a.run.app/callback",
 		},
 		Workflows: map[string]async.Workflow{
 			"order": func() async.WorkflowState {
@@ -51,31 +51,45 @@ func main() {
 			},
 		},
 	}
+
 	mr := mux.NewRouter()
+	if os.Getenv("GOOGLE_RUN") != "" {
+		cr := &CloudTasksResumer{
+			r:          &r,
+			C:          cTasks,
+			ProjectID:  "async-315408",
+			LocationID: "us-central1",
+			QueueName:  "order",
+			ResumeURL:  "https://pizzaapp-ffs2ro4uxq-uc.a.run.app/resume",
+		}
+		r.Resumer = cr
+		mr.HandleFunc("/resume", cr.ResumeHandler)
+
+		gTaskMgr := &GTasksTimeoutMgr{
+			r:           &r,
+			C:           cTasks,
+			ProjectID:   "async-315408",
+			LocationID:  "us-central1",
+			QueueName:   "order",
+			CallbackURL: "https://pizzaapp-ffs2ro4uxq-uc.a.run.app/callback/timeout",
+		}
+		mr.HandleFunc("/callback/timeout", gTaskMgr.TimeoutHandler)
+		r.CallbackManagers = map[string]async.CallbackManager{
+			"timeout": gTaskMgr,
+		}
+	} else {
+		r.Resumer = &LocalResumer{}
+		r.CallbackManagers = map[string]async.CallbackManager{
+			"timeout": &LocalTimeoutManager{r: &r},
+		}
+	}
+
 	mr.HandleFunc("/new", func(rw http.ResponseWriter, req *http.Request) {
-		err = r.NewWorkflow(context.Background(), fmt.Sprint(rand.Intn(10000)), "order", PizzaOrderWorkflow{})
+		id := fmt.Sprint(rand.Intn(10000))
+		err = r.NewWorkflow(context.Background(), id, "order", PizzaOrderWorkflow{})
 		if err != nil {
 			panic(err)
 		}
-	})
-	mr.HandleFunc("/resume", func(rw http.ResponseWriter, req *http.Request) {
-		var resume async.ResumeRequest
-		err := json.NewDecoder(req.Body).Decode(&resume)
-		if err != nil {
-			panic(err)
-		}
-		err = r.OnResume(req.Context(), resume)
-		if err != nil {
-			panic(err)
-		}
-	})
-	mr.HandleFunc("/callback", func(rw http.ResponseWriter, req *http.Request) {
-		var cb async.CallbackRequest
-		err := json.NewDecoder(req.Body).Decode(&cb)
-		if err != nil {
-			panic(err)
-		}
-		err = r.OnCallback(req.Context(), cb)
 		if err != nil {
 			panic(err)
 		}
@@ -114,51 +128,20 @@ type PizzaOrderRequest struct {
 	Pizzas    []Pizza
 }
 
-var S = async.S
-var Select = async.Select
-var After = async.After
-var Step = async.Step
-var On = async.On
-var For = async.For
-
-func UserAction(input string) []async.WaitCond {
-	return []async.WaitCond{}
-}
-
 func (e *PizzaOrderWorkflow) Definition() async.Section {
 	return S(
-		For(e.I < 100, "loodp", S(
-			Step("inside Loop", func() async.ActionResult {
-				log.Print("LOOP ", e.I)
-				e.I++
-				return async.ActionResult{Success: true}
-			}),
-		)),
-		Step("outside wait loop", func() async.ActionResult {
-			log.Print("eeee ", e.I)
-			e.I = 0
+		Step("start", func() async.ActionResult {
+			log.Print("eeee ")
 			return async.ActionResult{Success: true}
 		}),
-		For(e.I < 10, "loodpd", S(
-			Step("inside wait loopd", func() async.ActionResult {
-				log.Print("LOOP2 ", e.I)
-				e.I++
-				return async.ActionResult{Success: true}
-			}),
-			async.Go("parallel", S(
-				Select("wait in loop",
-					async.After(time.Second*5, S()),
-				),
-				Step("inside wait loopd goroutine", func() async.ActionResult {
-					log.Print("INSIDE LOOP! ", e.I)
-					e.PI++
-					return async.ActionResult{Success: true}
-				}),
-			), func() string { return fmt.Sprint(e.I) + "_thread" }),
-		)),
-		Select("wait 1 minute loop",
-			async.After(time.Minute, S()),
-		),
+		Wait("timeout select",
+			On("timeout1", &TimeoutHandler{
+				Delay: time.Second * 3,
+			}, nil)),
+		Step("start2", func() async.ActionResult {
+			log.Print("tttttt ")
+			return async.ActionResult{Success: true}
+		}),
 		async.Return("end"),
 	)
 }

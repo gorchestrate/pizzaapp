@@ -6,25 +6,47 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"strings"
 	"time"
 
 	"cloud.google.com/go/firestore"
 	"github.com/gorchestrate/async"
-	cloudtasks "google.golang.org/api/cloudtasks/v2beta3"
+	"google.golang.org/api/cloudtasks/v2"
 )
 
-type CloudTaskManager struct {
-	C           *cloudtasks.Service
-	ProjectID   string
-	LocationID  string
-	QueueName   string
-	ResumeURL   string
-	CallbackURL string
+type CloudTasksResumer struct {
+	r          *async.Runner
+	C          *cloudtasks.Service
+	ProjectID  string
+	LocationID string
+	QueueName  string
+	ResumeURL  string
 }
 
-func (mgr CloudTaskManager) SetResume(ctx context.Context, r async.ResumeRequest) error {
-	body, err := json.Marshal(r)
+type ResumeRequest struct {
+	ID string
+}
+
+func (mgr *CloudTasksResumer) ResumeHandler(w http.ResponseWriter, r *http.Request) {
+	var req ResumeRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		log.Printf("err: %v", err)
+		return
+	}
+	err = mgr.r.Resume(r.Context(), time.Second*10, 10000, req.ID)
+	if err != nil {
+		log.Printf("err: %v", err)
+		w.WriteHeader(500)
+		return
+	}
+}
+
+func (mgr *CloudTasksResumer) ScheduleResume(r *async.Runner, id string) error {
+	body, err := json.Marshal(ResumeRequest{
+		ID: id,
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -45,12 +67,41 @@ func (mgr CloudTaskManager) SetResume(ctx context.Context, r async.ResumeRequest
 	return err
 }
 
-func (mgr CloudTaskManager) SetTimeout(ctx context.Context, d time.Duration, r async.CallbackRequest) error {
-	body, err := json.Marshal(r)
+type GTasksTimeoutMgr struct {
+	r           *async.Runner
+	C           *cloudtasks.Service
+	ProjectID   string
+	LocationID  string
+	QueueName   string
+	CallbackURL string
+}
+
+func (mgr *GTasksTimeoutMgr) TimeoutHandler(w http.ResponseWriter, r *http.Request) {
+	var req async.CallbackRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		log.Printf("err: %v", err)
+		return
+	}
+	err = mgr.r.OnCallback(r.Context(), req)
+	if err != nil {
+		log.Printf("err: %v", err)
+		w.WriteHeader(500)
+		return
+	}
+}
+
+func (mgr *GTasksTimeoutMgr) Setup(req async.CallbackRequest) error {
+	var dur time.Duration
+	err := json.Unmarshal(req.Data, &dur)
+	if err != nil {
+		return err
+	}
+	body, err := json.Marshal(req)
 	if err != nil {
 		panic(err)
 	}
-	sTime := time.Now().Add(d).Format(time.RFC3339)
+	sTime := time.Now().Add(dur).Format(time.RFC3339)
 	_, err = mgr.C.Projects.Locations.Queues.Tasks.Create(
 		fmt.Sprintf("projects/%v/locations/%v/queues/%v",
 			mgr.ProjectID, mgr.LocationID, mgr.QueueName),
@@ -65,6 +116,11 @@ func (mgr CloudTaskManager) SetTimeout(ctx context.Context, d time.Duration, r a
 			},
 		}).Do()
 	return err
+}
+
+func (t *GTasksTimeoutMgr) Teardown(req async.CallbackRequest) error {
+	log.Printf("TODO: gtasks teardown, delete task")
+	return nil
 }
 
 type FirestoreStorage struct {
@@ -162,7 +218,7 @@ func (fs FirestoreStorage) RunLocked(ctx context.Context, id string, f async.Upd
 		[]firestore.Update{
 			{
 				Path:  "LockTill",
-				Value: 0,
+				Value: time.Time{},
 			},
 		},
 	)
