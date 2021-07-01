@@ -35,7 +35,7 @@ func (mgr *CloudTasksResumer) ResumeHandler(w http.ResponseWriter, r *http.Reque
 		log.Printf("err: %v", err)
 		return
 	}
-	err = mgr.r.Resume(r.Context(), time.Second*10, 10000, req.ID)
+	err = mgr.r.Execute(r.Context(), time.Second*10, 10000, req.ID)
 	if err != nil {
 		log.Printf("err: %v", err)
 		w.WriteHeader(500)
@@ -43,7 +43,7 @@ func (mgr *CloudTasksResumer) ResumeHandler(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-func (mgr *CloudTasksResumer) ScheduleResume(r *async.Runner, id string) error {
+func (mgr *CloudTasksResumer) ScheduleExecution(r *async.Runner, id string) error {
 	body, err := json.Marshal(ResumeRequest{
 		ID: id,
 	})
