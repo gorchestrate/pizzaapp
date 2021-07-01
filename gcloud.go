@@ -211,10 +211,9 @@ func (fs FirestoreStorage) RunLocked(ctx context.Context, id string, f async.Upd
 		)
 		return err
 	})
-	if err != nil { // TODO: unlock on error
-		return err
-	}
-	_, err = fs.DB.Collection(fs.Collection).Doc(id).Update(ctx,
+
+	// always unlock, even if previous err != nil
+	_, unlockErr := fs.DB.Collection(fs.Collection).Doc(id).Update(ctx,
 		[]firestore.Update{
 			{
 				Path:  "LockTill",
@@ -223,6 +222,9 @@ func (fs FirestoreStorage) RunLocked(ctx context.Context, id string, f async.Upd
 		},
 	)
 	if err != nil {
+		return fmt.Errorf("err during workflow processing: %v", err)
+	}
+	if unlockErr != nil {
 		return fmt.Errorf("err unlocking workflow: %v", err)
 	}
 	return nil

@@ -43,7 +43,7 @@ func (t *LocalTimeoutManager) Setup(req async.CallbackRequest) error {
 		time.Sleep(dur)
 		err := t.r.OnCallback(context.Background(), req)
 		if err != nil {
-			panic(err)
+			log.Printf("err on callback: %v", err)
 		}
 	}()
 	log.Printf("timer setup")

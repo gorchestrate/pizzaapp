@@ -24,6 +24,9 @@ import (
 
 var S = async.S
 var Wait = async.Wait
+var If = async.If
+var Switch = async.Switch
+var Case = async.Case
 var Step = async.Step
 var For = async.For
 var On = async.On
@@ -134,10 +137,33 @@ func (e *PizzaOrderWorkflow) Definition() async.Section {
 			log.Print("eeee ")
 			return async.ActionResult{Success: true}
 		}),
+		If(!e.IsAuthorized,
+			Step("do auth", func() async.ActionResult {
+				log.Print("Do AUTH ")
+				return async.ActionResult{Success: true}
+			}),
+		),
 		Wait("timeout select",
-			On("timeout1", &TimeoutHandler{
-				Delay: time.Second * 3,
-			}, nil)),
+			On("timeout1", &TimeoutHandler{Delay: time.Second * 3},
+				Step("start3", func() async.ActionResult {
+					log.Print("eeee ")
+					return async.ActionResult{Success: true}
+				}),
+				Step("start4", func() async.ActionResult {
+					log.Print("eeee222 ")
+					return async.ActionResult{Success: true}
+				}),
+			),
+			On("timeout2", &TimeoutHandler{Delay: time.Second * 3},
+				Step("start113", func() async.ActionResult {
+					log.Print("222eeee ")
+					return async.ActionResult{Success: true}
+				}),
+				Step("start3334", func() async.ActionResult {
+					log.Print("222eeee222 ")
+					return async.ActionResult{Success: true}
+				}),
+			)),
 		Step("start2", func() async.ActionResult {
 			log.Print("tttttt ")
 			return async.ActionResult{Success: true}
