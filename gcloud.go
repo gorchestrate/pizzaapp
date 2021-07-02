@@ -15,9 +15,10 @@ import (
 	cloudtasks "google.golang.org/api/cloudtasks/v2beta3"
 )
 
-type CloudTasksResumer struct {
-	r          *async.Runner
+type Scheduler struct {
+	engine     *Firestore
 	C          *cloudtasks.Service
+	Collection string
 	ProjectID  string
 	LocationID string
 	QueueName  string
@@ -28,14 +29,14 @@ type ResumeRequest struct {
 	ID string
 }
 
-func (mgr *CloudTasksResumer) ResumeHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Scheduler) ResumeHandler(w http.ResponseWriter, r *http.Request) {
 	var req ResumeRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		log.Printf("err: %v", err)
 		return
 	}
-	err = mgr.r.Execute(r.Context(), time.Second*10, 10000, req.ID)
+	err = s.engine.OnResume(r.Context(), req.ID)
 	if err != nil {
 		log.Printf("err: %v", err)
 		w.WriteHeader(500)
@@ -43,7 +44,7 @@ func (mgr *CloudTasksResumer) ResumeHandler(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-func (mgr *CloudTasksResumer) ScheduleExecution(r *async.Runner, id string) error {
+func (mgr *Scheduler) Schedule(id string) error {
 	body, err := json.Marshal(ResumeRequest{
 		ID: id,
 	})
@@ -68,8 +69,9 @@ func (mgr *CloudTasksResumer) ScheduleExecution(r *async.Runner, id string) erro
 }
 
 type GTasksTimeoutMgr struct {
-	r           *async.Runner
+	engine      *Firestore
 	C           *cloudtasks.Service
+	Collection  string
 	ProjectID   string
 	LocationID  string
 	QueueName   string
@@ -83,7 +85,9 @@ func (mgr *GTasksTimeoutMgr) TimeoutHandler(w http.ResponseWriter, r *http.Reque
 		log.Printf("err: %v", err)
 		return
 	}
-	err = mgr.r.OnCallback(r.Context(), req)
+	// TODO: pass input to callback!?
+	var input interface{}
+	_, err = mgr.engine.OnCallback(r.Context(), req, input)
 	if err != nil {
 		log.Printf("err: %v", err)
 		w.WriteHeader(500)
@@ -92,16 +96,15 @@ func (mgr *GTasksTimeoutMgr) TimeoutHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (mgr *GTasksTimeoutMgr) Setup(req async.CallbackRequest) error {
-	var dur time.Duration
-	err := json.Unmarshal(req.Data, &dur)
-	if err != nil {
-		return err
+	t, ok := req.Handler.(TimeoutHandler)
+	if !ok {
+		return fmt.Errorf("invalid timeout handler: %v", req)
 	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		panic(err)
 	}
-	sTime := time.Now().Add(dur).Format(time.RFC3339)
+	sTime := time.Now().Add(t.Delay).Format(time.RFC3339)
 	_, err = mgr.C.Projects.Locations.Queues.Tasks.Create(
 		fmt.Sprintf("projects/%v/locations/%v/queues/%v",
 			mgr.ProjectID, mgr.LocationID, mgr.QueueName),
@@ -123,42 +126,35 @@ func (t *GTasksTimeoutMgr) Teardown(req async.CallbackRequest) error {
 	return nil
 }
 
-type FirestoreStorage struct {
-	Collection string
+type Firestore struct {
+	scheduler  Scheduler
+	r          async.Runner
 	DB         *firestore.Client
+	Collection string
 }
 
-func (fs FirestoreStorage) Get(ctx context.Context, id string) (*async.State, error) {
-	d, err := fs.DB.Collection(fs.Collection).Doc(id).Get(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var s async.State
-	err = d.DataTo(s)
-	return &s, err
+type DBWorkflow struct {
+	Meta     async.Meta
+	State    interface{} // json body of workflow state
+	Input    interface{} // json input of the workflow
+	Output   interface{} // json output of the finished workflow. Valid only if Status = Finished
+	LockTill time.Time   // optimistic locking
 }
 
-func (fs FirestoreStorage) Create(ctx context.Context, id string, s *async.State) error {
-	_, err := fs.DB.Collection(fs.Collection).Doc(id).Create(ctx, s)
-	return err
-}
-
-func (fs FirestoreStorage) RunLocked(ctx context.Context, id string, f async.UpdaterFunc) error {
-	var err error
-	var doc *firestore.DocumentSnapshot
-	var s async.State
+func (fs Firestore) Lock(ctx context.Context, id string) (DBWorkflow, error) {
 	for i := 0; ; i++ {
-		doc, err = fs.DB.Collection(fs.Collection).Doc(id).Get(ctx)
+		doc, err := fs.DB.Collection(fs.Collection).Doc(id).Get(ctx)
 		if err != nil {
-			return err
+			return DBWorkflow{}, err
 		}
-		err = doc.DataTo(&s)
+		var wf DBWorkflow
+		err = doc.DataTo(&wf)
 		if err != nil {
-			return fmt.Errorf("err unmarshaling workflow: %v", err)
+			return DBWorkflow{}, fmt.Errorf("err unmarshaling workflow: %v", err)
 		}
-		if time.Since(s.LockTill) < 0 {
+		if time.Since(wf.LockTill) < 0 {
 			if i > 50 {
-				return fmt.Errorf("workflow is locked. can't unlock with 50 retries")
+				return DBWorkflow{}, fmt.Errorf("workflow is locked. can't unlock with 50 retries")
 			} else {
 				log.Printf("workflow is locked, waiting and trying again...")
 				time.Sleep(time.Millisecond * 100 * time.Duration(i))
@@ -179,39 +175,14 @@ func (fs FirestoreStorage) RunLocked(ctx context.Context, id string, f async.Upd
 			continue
 		}
 		if err != nil {
-			return fmt.Errorf("err locking workflow: %v", err)
+			return DBWorkflow{}, fmt.Errorf("err locking workflow: %v", err)
 		}
 		break
 	}
+	return DBWorkflow{}, fmt.Errorf("unexpexted")
+}
 
-	err = f(ctx, &s, func() error {
-		_, err = fs.DB.Collection(fs.Collection).Doc(id).Update(ctx,
-			[]firestore.Update{
-				{
-					Path:  "State",
-					Value: s.State,
-				},
-				{
-					Path:  "Status",
-					Value: s.Status,
-				},
-				{
-					Path:  "Output",
-					Value: s.Output,
-				},
-				{
-					Path:  "Threads",
-					Value: s.Threads,
-				},
-				{
-					Path:  "PC",
-					Value: s.PC,
-				},
-			},
-		)
-		return err
-	})
-
+func (fs Firestore) Unlock(ctx context.Context, id string) error {
 	// always unlock, even if previous err != nil
 	_, unlockErr := fs.DB.Collection(fs.Collection).Doc(id).Update(ctx,
 		[]firestore.Update{
@@ -221,11 +192,77 @@ func (fs FirestoreStorage) RunLocked(ctx context.Context, id string, f async.Upd
 			},
 		},
 	)
-	if err != nil {
-		return fmt.Errorf("err during workflow processing: %v", err)
-	}
 	if unlockErr != nil {
-		return fmt.Errorf("err unlocking workflow: %v", err)
+		return fmt.Errorf("err unlocking workflow: %v", unlockErr)
 	}
 	return nil
 }
+
+func (fs Firestore) Checkpoint(ctx context.Context, wf DBWorkflow, s async.WorkflowState) func(bool) error {
+	return func(resume bool) error {
+		if resume {
+			err := fs.scheduler.Schedule(wf.Meta.ID)
+			if err != nil {
+				return err
+			}
+		}
+		_, err := fs.DB.Collection(fs.Collection).Doc(wf.Meta.ID).Update(ctx,
+			[]firestore.Update{
+				{
+					Path:  "Meta",
+					Value: wf.Meta,
+				},
+				{
+					Path:  "State",
+					Value: s,
+				},
+			},
+		)
+		return err
+	}
+}
+
+func (fs Firestore) OnCallback(ctx context.Context, req async.CallbackRequest, input interface{}) (interface{}, error) {
+	wf, err := fs.Lock(ctx, req.WorkflowID)
+	if err != nil {
+		return nil, err
+	}
+	state := &PizzaOrderWorkflow{}
+	out, err := fs.r.OnCallback(ctx, req, state, &wf.Meta, input, fs.Checkpoint(ctx, wf, state))
+	if err != nil {
+		return out, fmt.Errorf("err during workflow processing: %v", err)
+	}
+	return out, fs.Unlock(ctx, req.WorkflowID)
+}
+
+func (fs Firestore) OnResume(ctx context.Context, id string) error {
+	wf, err := fs.Lock(ctx, id)
+	if err != nil {
+		return err
+	}
+	state := &PizzaOrderWorkflow{}
+	err = fs.r.OnResume(ctx, state, &wf.Meta, fs.Checkpoint(ctx, wf, state))
+	if err != nil {
+		return fmt.Errorf("err during workflow processing: %v", err)
+	}
+	return fs.Unlock(ctx, id)
+}
+
+// func (fs Firestore) Get(ctx context.Context, id string) (*async.State, error) {
+// 	d, err := fs.DB.Collection(fs.Collection).Doc(id).Get(ctx)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	var s async.State
+// 	err = d.DataTo(s)
+// 	return &s, err
+// }
+
+// func (fs Firestore) ScheduleAndCreate(ctx context.Context, id string, s *async.State) error {
+// 	err := fs.ScheduleExecution(id)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	_, err = fs.DB.Collection(fs.Collection).Doc(id).Create(ctx, s)
+// 	return err
+// }

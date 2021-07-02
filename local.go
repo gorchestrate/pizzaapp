@@ -1,8 +1,7 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
@@ -10,41 +9,38 @@ import (
 )
 
 type LocalResumer struct {
-	r *async.Runner
 }
 
 func (gr *LocalResumer) ScheduleExecution(r *async.Runner, id string) error {
 	log.Print("scheduling resume")
 	go func() {
-		for i := 0; i < 10; i++ {
-			err := r.Execute(context.Background(), time.Second*10, 10000, id)
-			if err != nil {
-				log.Printf("err resuming %v: %v", id, err)
-				time.Sleep(time.Second * 1)
-				continue
-			}
-			return
-		}
+		// for i := 0; i < 10; i++ {
+		// 	err := r.Execute(context.Background(), time.Second*10, 10000, id)
+		// 	if err != nil {
+		// 		log.Printf("err resuming %v: %v", id, err)
+		// 		time.Sleep(time.Second * 1)
+		// 		continue
+		// 	}
+		// 	return
+		// }
 	}()
 	return nil
 }
 
 type LocalTimeoutManager struct {
-	r *async.Runner
 }
 
 func (t *LocalTimeoutManager) Setup(req async.CallbackRequest) error {
-	var dur time.Duration
-	err := json.Unmarshal(req.Data, &dur)
-	if err != nil {
-		return err
+	h, ok := req.Handler.(TimeoutHandler)
+	if !ok {
+		return fmt.Errorf("invalid timeout handler: %v", req)
 	}
 	go func() {
-		time.Sleep(dur)
-		err := t.r.OnCallback(context.Background(), req)
-		if err != nil {
-			log.Printf("err on callback: %v", err)
-		}
+		time.Sleep(h.Delay)
+		// err := t.r.OnCallback(context.Background(), req)
+		// if err != nil {
+		// 	log.Printf("err on callback: %v", err)
+		// }
 	}()
 	log.Printf("timer setup")
 	return nil
@@ -60,16 +56,8 @@ type TimeoutHandler struct {
 }
 
 // no aciton for timeout handler
-func (t *TimeoutHandler) Handle(req async.CallbackRequest, input json.RawMessage) (json.RawMessage, error) {
+func (t *TimeoutHandler) Handle(req async.CallbackRequest, input interface{}) (interface{}, error) {
 	return nil, nil
-}
-
-func (t *TimeoutHandler) Marshal() json.RawMessage {
-	d, err := json.Marshal(t.Delay)
-	if err != nil {
-		panic(err)
-	}
-	return d
 }
 
 func (t *TimeoutHandler) Type() string {

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
@@ -36,33 +35,28 @@ func main() {
 		panic(err)
 	}
 
-	r := async.Runner{
-		DB: FirestoreStorage{
-			DB:         db,
-			Collection: "orders",
-		},
-		Workflows: map[string]async.Workflow{
-			"order": func() async.WorkflowState {
-				return &PizzaOrderWorkflow{}
-			},
-		},
-	}
-
+	r := async.Runner{}
 	mr := mux.NewRouter()
 	if os.Getenv("GOOGLE_RUN") != "" {
-		cr := &CloudTasksResumer{
-			r:          &r,
+		engine := &Firestore{
+			DB:         db,
+			Collection: "order",
+			r:          r,
+		}
+		s := &Scheduler{
+			engine:     engine,
 			C:          cTasks,
 			ProjectID:  "async-315408",
 			LocationID: "us-central1",
 			QueueName:  "order",
 			ResumeURL:  "https://pizzaapp-ffs2ro4uxq-uc.a.run.app/resume",
 		}
-		r.Resumer = cr
-		mr.HandleFunc("/resume", cr.ResumeHandler)
+		engine.scheduler = *s
+
+		mr.HandleFunc("/resume", s.ResumeHandler)
 
 		gTaskMgr := &GTasksTimeoutMgr{
-			r:           &r,
+			engine:      engine,
 			C:           cTasks,
 			ProjectID:   "async-315408",
 			LocationID:  "us-central1",
@@ -74,21 +68,21 @@ func main() {
 			"timeout": gTaskMgr,
 		}
 	} else {
-		r.Resumer = &LocalResumer{}
-		r.CallbackManagers = map[string]async.CallbackManager{
-			"timeout": &LocalTimeoutManager{r: &r},
-		}
+		// engine := &LocalWorkflowEngine{
+		// 	DB:         db,
+		// 	Collection: "order",
+		// 	r:          r,
+		// }
+		// r.CallbackManagers = map[string]async.CallbackManager{
+		// 	"timeout": &LocalTimeoutManager{
+		// 		engine: engine,
+		// 	},
+		// }
 	}
 
 	mr.HandleFunc("/new", func(rw http.ResponseWriter, req *http.Request) {
-		id := fmt.Sprint(rand.Intn(10000))
-		err = r.NewWorkflow(context.Background(), id, "order", PizzaOrderWorkflow{})
-		if err != nil {
-			panic(err)
-		}
-		if err != nil {
-			panic(err)
-		}
+		//id := fmt.Sprint(rand.Intn(10000))
+		//storage.ScheduleAndCreate(req.Context(), id)
 	})
 	err = http.ListenAndServe(":8080", mr)
 	if err != nil {
