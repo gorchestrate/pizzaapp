@@ -134,11 +134,11 @@ type Firestore struct {
 }
 
 type DBWorkflow struct {
-	Meta     async.Meta
-	State    interface{} // json body of workflow state
-	Input    interface{} // json input of the workflow
-	Output   interface{} // json output of the finished workflow. Valid only if Status = Finished
-	LockTill time.Time   // optimistic locking
+	Meta  async.State
+	State interface{} // json body of workflow state
+	//Input    interface{} // json input of the workflow
+	//Output   interface{} // json output of the finished workflow. Valid only if Status = Finished
+	LockTill time.Time // optimistic locking
 }
 
 func (fs Firestore) Lock(ctx context.Context, id string) (DBWorkflow, error) {

@@ -155,7 +155,11 @@ func (e *PizzaOrderWorkflow) Definition() async.Section {
 			log.Print("tttttt ")
 			return nil
 		}),
-		async.Return("end"),
+		Step("notify parent process", func() error {
+			log.Print("tttttt ")
+			return nil
+		}),
+		async.Return(),
 	)
 }
 
