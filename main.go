@@ -9,10 +9,11 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/gorchestrate/async"
-	"github.com/gorchestrate/gcloud-plugins"
 	"github.com/gorilla/mux"
 	cloudtasks "google.golang.org/api/cloudtasks/v2beta3"
 )
+
+var gTaskMgr *GTasksScheduler
 
 func main() {
 	rand.Seed(time.Now().Unix())
@@ -25,9 +26,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	r := async.Runner{}
 	mr := mux.NewRouter()
-	engine := &gcloud.FirestoreEngine{
+	engine := &FirestoreEngine{
 		DB:         db,
 		Collection: "workflows",
 		Workflows: map[string]func() async.WorkflowState{
@@ -37,7 +37,7 @@ func main() {
 		},
 	}
 
-	s := &gcloud.GTasksScheduler{
+	s := &GTasksScheduler{
 		Engine:     engine,
 		C:          cTasks,
 		ProjectID:  "async-315408",
@@ -48,7 +48,7 @@ func main() {
 	mr.HandleFunc("/resume", s.ResumeHandler)
 	engine.Scheduler = s
 
-	gTaskMgr := &gcloud.TimeoutMgr{
+	gTaskMgr = &GTasksScheduler{
 		Engine:      engine,
 		C:           cTasks,
 		ProjectID:   "async-315408",
@@ -57,10 +57,6 @@ func main() {
 		CallbackURL: "https://pizzaapp-ffs2ro4uxq-uc.a.run.app/callback/timeout",
 	}
 	mr.HandleFunc("/callback/timeout", gTaskMgr.TimeoutHandler)
-
-	r.CallbackManagers = map[string]async.CallbackManager{
-		gcloud.TimeoutTypeName: gTaskMgr,
-	}
 
 	mr.HandleFunc("/new", func(rw http.ResponseWriter, req *http.Request) {
 		id := fmt.Sprint(rand.Intn(10000))

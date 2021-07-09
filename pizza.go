@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/gorchestrate/async"
-	"github.com/gorchestrate/gcloud-plugins"
 )
 
 type PizzaOrderWorkflow struct {
@@ -49,7 +48,7 @@ func (e *PizzaOrderWorkflow) Definition() async.Section {
 			}),
 		),
 		Wait("timeout select",
-			On("timeout1", gcloud.Timeout(time.Second*3),
+			On("timeout1", gTaskMgr.Timeout(time.Second*3),
 				Step("start3", func() error {
 					log.Print("eeee ")
 					return nil
@@ -59,7 +58,7 @@ func (e *PizzaOrderWorkflow) Definition() async.Section {
 					return nil
 				}),
 			),
-			On("timeout2", gcloud.Timeout(time.Second*3),
+			On("timeout2", gTaskMgr.Timeout(time.Second*3),
 				Step("start113", func() error {
 					log.Print("222eeee ")
 					return nil
