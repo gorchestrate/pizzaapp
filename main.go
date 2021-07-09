@@ -16,6 +16,7 @@ import (
 )
 
 var gTaskMgr *GTasksScheduler
+var engine *FirestoreEngine
 
 func main() {
 	rand.Seed(time.Now().Unix())
@@ -29,7 +30,7 @@ func main() {
 		panic(err)
 	}
 	mr := mux.NewRouter()
-	engine := &FirestoreEngine{
+	engine = &FirestoreEngine{
 		DB:         db,
 		Collection: "workflows",
 		Workflows: map[string]func() async.WorkflowState{
