@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"time"
@@ -80,22 +79,7 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(wf)
 	})
-	mr.HandleFunc("/simpleevent/{id}/{event}", func(w http.ResponseWriter, r *http.Request) {
-		d, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			w.WriteHeader(500)
-			fmt.Fprintf(w, err.Error())
-			return
-		}
-		out, err := engine.HandleEvent(r.Context(), mux.Vars(r)["id"], mux.Vars(r)["event"], d)
-		if err != nil {
-			w.WriteHeader(400)
-			fmt.Fprintf(w, err.Error())
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(out)
-	})
+	mr.HandleFunc("/simpleevent/{id}/{event}", SimpleEventHandler)
 
 	err = http.ListenAndServe(":8080", mr)
 	if err != nil {
