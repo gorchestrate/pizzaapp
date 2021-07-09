@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"time"
@@ -47,7 +49,6 @@ func main() {
 	}
 	mr.HandleFunc("/resume", s.ResumeHandler)
 	engine.Scheduler = s
-
 	gTaskMgr = &GTasksScheduler{
 		Engine:      engine,
 		C:           cTasks,
@@ -58,9 +59,37 @@ func main() {
 	}
 	mr.HandleFunc("/callback/timeout", gTaskMgr.TimeoutHandler)
 
-	mr.HandleFunc("/new", func(rw http.ResponseWriter, req *http.Request) {
-		id := fmt.Sprint(rand.Intn(10000))
-		engine.ScheduleAndCreate(req.Context(), id, "pizzaOrder", &PizzaOrderWorkflow{})
+	mr.HandleFunc("/new/{id}", func(w http.ResponseWriter, r *http.Request) {
+		err := engine.ScheduleAndCreate(r.Context(), mux.Vars(r)["id"], "pizzaOrder", &PizzaOrderWorkflow{})
+		if err != nil {
+			w.WriteHeader(400)
+			fmt.Fprintf(w, err.Error())
+			return
+		}
+	})
+	mr.HandleFunc("/status/{id}", func(w http.ResponseWriter, r *http.Request) {
+		wf, err := engine.Get(r.Context(), mux.Vars(r)["id"])
+		if err != nil {
+			w.WriteHeader(400)
+			fmt.Fprintf(w, err.Error())
+			return
+		}
+		_ = json.NewEncoder(w).Encode(wf)
+	})
+	mr.HandleFunc("/simpleevent/{id}/{event}", func(w http.ResponseWriter, r *http.Request) {
+		d, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(500)
+			fmt.Fprintf(w, err.Error())
+			return
+		}
+		out, err := engine.HandleEvent(r.Context(), mux.Vars(r)["id"], mux.Vars(r)["event"], d)
+		if err != nil {
+			w.WriteHeader(400)
+			fmt.Fprintf(w, err.Error())
+			return
+		}
+		_ = json.NewEncoder(w).Encode(out)
 	})
 
 	err = http.ListenAndServe(":8080", mr)

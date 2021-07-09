@@ -1,81 +1,68 @@
 package main
 
 import (
-	"log"
+	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/gorchestrate/async"
 )
 
 type PizzaOrderWorkflow struct {
-	ID           string
-	IsAuthorized bool
-	OrderNumber  string
-	Created      time.Time
-	Status       string
-	Request      PizzaOrderRequest
-	I            int
-	PI           int
-	Wg           int
+	Status string
+	Body   map[string]string
 }
 
-type Pizza struct {
-	ID    string
-	Name  string
-	Sause string
-	Qty   int
-}
-type PizzaOrderResponse struct {
-	OrderNumber string
-}
-
-type PizzaOrderRequest struct {
-	User      string
-	OrderTime time.Time
-	Pizzas    []Pizza
-}
-
-func (e *PizzaOrderWorkflow) Definition() async.Section {
+func (wf *PizzaOrderWorkflow) Definition() async.Section {
 	return S(
-		Step("start", func() error {
-			log.Print("eeee ")
+		Step("step1", func() error {
+			wf.Status = "started"
 			return nil
 		}),
-		If(!e.IsAuthorized,
-			Step("do auth", func() error {
-				log.Print("Do AUTH ")
-				return nil
-			}),
-		),
-		Wait("timeout select",
-			On("timeout1", gTaskMgr.Timeout(time.Second*3),
-				Step("start3", func() error {
-					log.Print("eeee ")
-					return nil
-				}),
-				Step("start4", func() error {
-					log.Print("eeee222 ")
+		Wait("wait for event 20 seconds",
+			On("20 seconds passsed", gTaskMgr.Timeout(time.Second*20),
+				Step("set timed out", func() error {
+					wf.Status = "timed out"
 					return nil
 				}),
 			),
-			On("timeout2", gTaskMgr.Timeout(time.Second*3),
-				Step("start113", func() error {
-					log.Print("222eeee ")
-					return nil
-				}),
-				Step("start3334", func() error {
-					log.Print("222eeee222 ")
-					return nil
-				}),
-			)),
-		Step("start2", func() error {
-			log.Print("tttttt ")
-			return nil
-		}),
-		Step("notify parent process", func() error {
-			log.Print("tttttt ")
+			On("got event", &SimpleEvent{Handler: func(body map[string]string) (map[string]string, error) {
+				body["processed"] = "true"
+				wf.Body = body
+				wf.Status = "got event"
+				return body, nil
+			}}),
+		),
+		Wait("wait some time", On("10 seconds passed", gTaskMgr.Timeout(time.Second*10))),
+		Step("step2", func() error {
+			wf.Status = "finished"
 			return nil
 		}),
 		async.Return(),
 	)
+}
+
+type SimpleEvent struct {
+	Handler func(body map[string]string) (map[string]string, error)
+}
+
+func (t *SimpleEvent) Handle(ctx context.Context, req async.CallbackRequest, input interface{}) (interface{}, error) {
+	var in map[string]string
+	err := json.Unmarshal(input.([]byte), &input)
+	if err != nil {
+		return nil, err
+	}
+	out, err := t.Handler(in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (t *SimpleEvent) Setup(ctx context.Context, req async.CallbackRequest) (json.RawMessage, error) {
+	return nil, nil
+}
+
+func (t *SimpleEvent) Teardown(ctx context.Context, req async.CallbackRequest) error {
+	return nil
 }
