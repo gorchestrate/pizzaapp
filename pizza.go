@@ -26,7 +26,7 @@ func (wf *PizzaOrderWorkflow) Definition() async.Section {
 					return nil
 				}),
 			),
-			On("got event", &SimpleEvent{Handler: func(body map[string]string) (map[string]string, error) {
+			On("myEvent", &SimpleEvent{Handler: func(body map[string]string) (map[string]string, error) {
 				body["processed"] = "true"
 				wf.Body = body
 				wf.Status = "got event"
@@ -47,7 +47,7 @@ type SimpleEvent struct {
 }
 
 func (t *SimpleEvent) Handle(ctx context.Context, req async.CallbackRequest, input interface{}) (interface{}, error) {
-	var in map[string]string
+	in := map[string]string{}
 	err := json.Unmarshal(input.([]byte), &input)
 	if err != nil {
 		return nil, err

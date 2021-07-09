@@ -110,6 +110,7 @@ func (fs FirestoreEngine) HandleCallback(ctx context.Context, id string, cb asyn
 	if err != nil {
 		return nil, err
 	}
+	defer fs.Unlock(ctx, id)
 	w, ok := fs.Workflows[wf.Meta.Workflow]
 	if !ok {
 		return nil, fmt.Errorf("workflow not found: %v", err)
@@ -127,13 +128,14 @@ func (fs FirestoreEngine) HandleCallback(ctx context.Context, id string, cb asyn
 	if err != nil {
 		return out, fmt.Errorf("err during workflow processing: %v", err)
 	}
-	return out, fs.Unlock(ctx, id)
+	return out, nil
 }
 func (fs FirestoreEngine) HandleEvent(ctx context.Context, id string, name string, input interface{}) (interface{}, error) {
 	wf, err := fs.Lock(ctx, id)
 	if err != nil {
 		return nil, err
 	}
+	defer fs.Unlock(ctx, id)
 	w, ok := fs.Workflows[wf.Meta.Workflow]
 	if !ok {
 		return nil, fmt.Errorf("workflow not found: %v", err)
@@ -151,7 +153,7 @@ func (fs FirestoreEngine) HandleEvent(ctx context.Context, id string, name strin
 	if err != nil {
 		return out, fmt.Errorf("err during workflow processing: %v", err)
 	}
-	return out, fs.Unlock(ctx, id)
+	return out, nil
 }
 
 func (fs FirestoreEngine) Resume(ctx context.Context, id string) error {
@@ -159,6 +161,7 @@ func (fs FirestoreEngine) Resume(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
+	defer fs.Unlock(ctx, id)
 	w, ok := fs.Workflows[wf.Meta.Workflow]
 	if !ok {
 		return fmt.Errorf("workflow not found: %v", err)
@@ -176,7 +179,7 @@ func (fs FirestoreEngine) Resume(ctx context.Context, id string) error {
 	if err != nil {
 		return fmt.Errorf("err during workflow processing: %v", err)
 	}
-	return fs.Unlock(ctx, id)
+	return nil
 }
 
 func (fs FirestoreEngine) Get(ctx context.Context, id string) (*DBWorkflow, error) {
@@ -185,7 +188,7 @@ func (fs FirestoreEngine) Get(ctx context.Context, id string) (*DBWorkflow, erro
 		return nil, err
 	}
 	var wf DBWorkflow
-	err = d.DataTo(wf)
+	err = d.DataTo(&wf)
 	return &wf, err
 }
 

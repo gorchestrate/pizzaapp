@@ -60,7 +60,9 @@ func main() {
 	mr.HandleFunc("/callback/timeout", gTaskMgr.TimeoutHandler)
 
 	mr.HandleFunc("/new/{id}", func(w http.ResponseWriter, r *http.Request) {
-		err := engine.ScheduleAndCreate(r.Context(), mux.Vars(r)["id"], "pizzaOrder", &PizzaOrderWorkflow{})
+		err := engine.ScheduleAndCreate(r.Context(), mux.Vars(r)["id"], "pizzaOrder", &PizzaOrderWorkflow{
+			Body: map[string]string{},
+		})
 		if err != nil {
 			w.WriteHeader(400)
 			fmt.Fprintf(w, err.Error())
@@ -74,6 +76,7 @@ func main() {
 			fmt.Fprintf(w, err.Error())
 			return
 		}
+		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(wf)
 	})
 	mr.HandleFunc("/simpleevent/{id}/{event}", func(w http.ResponseWriter, r *http.Request) {
@@ -89,6 +92,7 @@ func main() {
 			fmt.Fprintf(w, err.Error())
 			return
 		}
+		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(out)
 	})
 
