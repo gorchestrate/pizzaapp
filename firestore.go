@@ -89,7 +89,6 @@ func (fs FirestoreEngine) Checkpoint(ctx context.Context, wf *DBWorkflow, s *asy
 				return err
 			}
 		}
-		d, _ := json.Marshal(wf)
 		_, err := fs.DB.Collection(fs.Collection).Doc(wf.Meta.ID).Update(ctx,
 			[]firestore.Update{
 				{
