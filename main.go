@@ -95,3 +95,5 @@ var Case = async.Case
 var Step = async.Step
 var For = async.For
 var On = async.On
+var Select = async.Select
+var Return = async.Return

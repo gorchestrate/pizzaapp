@@ -88,8 +88,8 @@ func (t *TimeoutHandler) Setup(ctx context.Context, req async.CallbackRequest) (
 	return t.scheduler.Setup(ctx, req, t.Duration)
 }
 
-func (t *TimeoutHandler) Teardown(ctx context.Context, req async.CallbackRequest) error {
-	return t.scheduler.Teardown(ctx, req)
+func (t *TimeoutHandler) Teardown(ctx context.Context, req async.CallbackRequest, handled bool) error {
+	return t.scheduler.Teardown(ctx, req, handled)
 }
 
 func (mgr *GTasksScheduler) TimeoutHandler(w http.ResponseWriter, r *http.Request) {
@@ -139,12 +139,19 @@ func (mgr *GTasksScheduler) Setup(ctx context.Context, req async.CallbackRequest
 	return d, err
 }
 
-func (mgr *GTasksScheduler) Teardown(ctx context.Context, req async.CallbackRequest) error {
+func (mgr *GTasksScheduler) Teardown(ctx context.Context, req async.CallbackRequest, handled bool) error {
+	if handled {
+		log.Printf("skipping teardown for task that was already handled")
+		return nil
+	}
 	var data GTasksSchedulerData
 	err := json.Unmarshal(req.SetupData, &data)
 	if err != nil {
 		return err
 	}
 	_, err = mgr.C.Projects.Locations.Queues.Tasks.Delete(data.ID).Do()
-	return err
+	if err != nil {
+		log.Printf("delete task err: %v", err)
+	}
+	return nil
 }

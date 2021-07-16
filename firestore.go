@@ -81,7 +81,7 @@ func (fs FirestoreEngine) Unlock(ctx context.Context, id string) error {
 	return nil
 }
 
-func (fs FirestoreEngine) Checkpoint(ctx context.Context, wf DBWorkflow, s async.WorkflowState) func(bool) error {
+func (fs FirestoreEngine) Checkpoint(ctx context.Context, wf *DBWorkflow, s *async.WorkflowState) func(bool) error {
 	return func(resume bool) error {
 		if resume {
 			err := fs.Scheduler.Schedule(ctx, wf.Meta.ID)
@@ -89,6 +89,7 @@ func (fs FirestoreEngine) Checkpoint(ctx context.Context, wf DBWorkflow, s async
 				return err
 			}
 		}
+		d, _ := json.Marshal(wf)
 		_, err := fs.DB.Collection(fs.Collection).Doc(wf.Meta.ID).Update(ctx,
 			[]firestore.Update{
 				{
@@ -97,7 +98,7 @@ func (fs FirestoreEngine) Checkpoint(ctx context.Context, wf DBWorkflow, s async
 				},
 				{
 					Path:  "State",
-					Value: s,
+					Value: *s,
 				},
 			},
 		)
@@ -124,12 +125,13 @@ func (fs FirestoreEngine) HandleCallback(ctx context.Context, id string, cb asyn
 	if err != nil {
 		return nil, err
 	}
-	out, err := async.HandleCallback(ctx, cb, state, &wf.Meta, input, fs.Checkpoint(ctx, wf, state))
+	out, err := async.HandleCallback(ctx, cb, state, &wf.Meta, input, fs.Checkpoint(ctx, &wf, &state))
 	if err != nil {
 		return out, fmt.Errorf("err during workflow processing: %v", err)
 	}
 	return out, nil
 }
+
 func (fs FirestoreEngine) HandleEvent(ctx context.Context, id string, name string, input interface{}) (interface{}, error) {
 	wf, err := fs.Lock(ctx, id)
 	if err != nil {
@@ -149,7 +151,7 @@ func (fs FirestoreEngine) HandleEvent(ctx context.Context, id string, name strin
 	if err != nil {
 		return nil, err
 	}
-	out, err := async.HandleEvent(ctx, name, state, &wf.Meta, input, fs.Checkpoint(ctx, wf, state))
+	out, err := async.HandleEvent(ctx, name, state, &wf.Meta, input, fs.Checkpoint(ctx, &wf, &state))
 	if err != nil {
 		return out, fmt.Errorf("err during workflow processing: %v", err)
 	}
@@ -175,7 +177,7 @@ func (fs FirestoreEngine) Resume(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	err = async.Resume(ctx, state, &wf.Meta, fs.Checkpoint(ctx, wf, state))
+	err = async.Resume(ctx, state, &wf.Meta, fs.Checkpoint(ctx, &wf, &state))
 	if err != nil {
 		return fmt.Errorf("err during workflow processing: %v", err)
 	}
