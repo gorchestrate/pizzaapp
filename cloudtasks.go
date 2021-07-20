@@ -44,6 +44,8 @@ func (mgr *GTasksScheduler) ResumeHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// in this demo we resume workflows right inside the http handler.
+// we use this scheduler only for redundancy in case resume will fail for some reason in http handler.
 func (mgr *GTasksScheduler) Schedule(ctx context.Context, id string) error {
 	body, err := json.Marshal(ResumeRequest{
 		ID: id,

@@ -37,12 +37,6 @@ type PizzaOrderWorkflow struct {
 
 func (wf *PizzaOrderWorkflow) Definition() async.Section {
 	return S(
-		Step("init", func() error {
-			wf.Cart = []Pizza{}
-			wf.Status = "started"
-			return nil
-		}),
-
 		For(true, "order not yet submitted",
 			Wait("wait for user input",
 				On("24h passsed", gTaskMgr.Timeout(24*3600*time.Second),
@@ -56,7 +50,7 @@ func (wf *PizzaOrderWorkflow) Definition() async.Section {
 					wf.Cart = append(wf.Cart, in)
 					return *wf, nil
 				}),
-				Event("clean", func(in Pizza) (PizzaOrderWorkflow, error) {
+				Event("clean", func(in Empty) (PizzaOrderWorkflow, error) {
 					wf.Cart = []Pizza{}
 					return *wf, nil
 				}),
@@ -285,6 +279,16 @@ func SimpleEventHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, err.Error())
 		return
 	}
+	// after callback is handled - we wait for resume process
+	// we can rely on Scheduler to execute Resume(), but then clients that want to send
+	// events to us will have to wait till Resume() is executed.
+	err = engine.Resume(r.Context(), mux.Vars(r)["id"])
+	if err != nil {
+		log.Printf("resume err: %v", err)
+		w.WriteHeader(500)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(out)
 }

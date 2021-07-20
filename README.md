@@ -16,12 +16,11 @@ Send Events
 https://pizzaapp-ffs2ro4uxq-uc.a.run.app/event/{id}/{event}
 
 
-Curl commands for trying out:
 ```
 export wfid={FILL IN YOUR ID}
 curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/new/$wfid
-curl -X POST -d '{"Name":"pepperoni","Qty":"2"}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/event/$wfid/add
 curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/event/$wfid/clean
+curl -X POST -d '{"Name":"pepperoni","Qty":2}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/event/$wfid/add
 curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/event/$wfid/submit
 curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/event/$wfid/confirm
 curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/event/$wfid/confirm_payment
@@ -29,6 +28,7 @@ curl -X POST -d '{"CookName":"Chef"}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/e
 curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/event/$wfid/cooked
 curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/event/$wfid/take_for_delivery
 curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/event/$wfid/delivered
+
 ```
 
 

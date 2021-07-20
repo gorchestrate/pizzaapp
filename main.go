@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"time"
@@ -66,6 +67,13 @@ func main() {
 		if err != nil {
 			w.WriteHeader(400)
 			fmt.Fprintf(w, err.Error())
+			return
+		}
+		// after callback is handled - we wait for resume process
+		err = engine.Resume(r.Context(), mux.Vars(r)["id"])
+		if err != nil {
+			log.Printf("resume err: %v", err)
+			w.WriteHeader(500)
 			return
 		}
 	})
