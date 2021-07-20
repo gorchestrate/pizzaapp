@@ -80,6 +80,16 @@ type TimeoutHandler struct {
 	scheduler *GTasksScheduler
 }
 
+func (s TimeoutHandler) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type     string
+		Duration string
+	}{
+		Type:     "timeout",
+		Duration: fmt.Sprintf("%v sec", s.Duration.Seconds()),
+	})
+}
+
 func (t *TimeoutHandler) Handle(ctx context.Context, req async.CallbackRequest, input interface{}) (interface{}, error) {
 	return nil, nil
 }

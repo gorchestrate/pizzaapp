@@ -61,7 +61,7 @@ func main() {
 
 	mr.HandleFunc("/new/{id}", func(w http.ResponseWriter, r *http.Request) {
 		err := engine.ScheduleAndCreate(r.Context(), mux.Vars(r)["id"], "pizzaOrder", &PizzaOrderWorkflow{
-			Body: map[string]string{},
+			Status: "created",
 		})
 		if err != nil {
 			w.WriteHeader(400)
@@ -79,7 +79,15 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(wf)
 	})
-	mr.HandleFunc("/simpleevent/{id}/{event}", SimpleEventHandler)
+	mr.HandleFunc("/definition", func(w http.ResponseWriter, r *http.Request) {
+		wf := PizzaOrderWorkflow{}
+		w.Header().Set("Content-Type", "application/json")
+		e := json.NewEncoder(w)
+		e.SetIndent("", " ")
+		_ = e.Encode(wf.Definition())
+	})
+
+	mr.HandleFunc("/event/{id}/{event}", SimpleEventHandler)
 
 	err = http.ListenAndServe(":8080", mr)
 	if err != nil {
@@ -88,12 +96,14 @@ func main() {
 }
 
 var S = async.S
-var Wait = async.Wait
 var If = async.If
 var Switch = async.Switch
 var Case = async.Case
 var Step = async.Step
 var For = async.For
 var On = async.On
-var Select = async.Select
+var Go = async.Go
+var Wait = async.Wait
+var WaitCond = async.WaitCond
 var Return = async.Return
+var Break = async.Break
