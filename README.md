@@ -1,10 +1,21 @@
 # pizzaapp
 Example app using Gorchestrate to manage pizza ordering
 
+It shows how you can brainstorm your workflows and create APIs to manage it on the fly.
+This workflow definition was written in 5-10 minutes and simulates application for pizza ordering.
+
+Using such approach you can create API's for workflow much faster and simpler.
+
+## TODO
+
+* Swagger docs generation for all events
+* GraphViz diagrams for the workflow
+* UI to see the workflow and it's steps
+
+
+## API
+
 Deployed at https://pizzaapp-ffs2ro4uxq-uc.a.run.app
-
-
-## Usage
 
 Create Workflow
 	https://pizzaapp-ffs2ro4uxq-uc.a.run.app/new/{id}
@@ -12,8 +23,12 @@ Create Workflow
 Check Workflow status
 https://pizzaapp-ffs2ro4uxq-uc.a.run.app/status/{id}
 
+Get workflow definition
+https://pizzaapp-ffs2ro4uxq-uc.a.run.app/definition
+
 Send Events
 https://pizzaapp-ffs2ro4uxq-uc.a.run.app/event/{id}/{event}
+
 
 
 ```
