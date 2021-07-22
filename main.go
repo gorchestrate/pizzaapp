@@ -35,8 +35,8 @@ func main() {
 	}
 	mr := mux.NewRouter()
 	c := cors.New(cors.Options{
-		AllowedOrigins: []string{"https://petstore.swagger.io"},
-		AllowedMethods: []string{"GET"},
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"GET", "POST"},
 	})
 	mr.Use(c.Handler)
 	engine = &FirestoreEngine{
@@ -99,7 +99,28 @@ func main() {
 	mr.HandleFunc("/swagger", func(w http.ResponseWriter, r *http.Request) {
 		wf := PizzaOrderWorkflow{}
 		definitions := map[string]interface{}{}
-		endpoints := map[string]interface{}{}
+		endpoints := map[string]interface{}{
+			"/new/{id}": map[string]interface{}{
+				"post": map[string]interface{}{
+					"consumes": []string{"application/json"},
+					"produces": []string{"application/json"},
+					"parameters": []map[string]interface{}{
+						{
+							"name":        "id",
+							"in":          "path",
+							"description": "workflow id",
+							"required":    true,
+							"type":        "string",
+						},
+					},
+					"responses": map[string]interface{}{
+						"200": map[string]interface{}{
+							"description": "success",
+						},
+					},
+				},
+			},
+		}
 		docs := map[string]interface{}{
 			"definitions": definitions,
 			"swagger":     "2.0",
@@ -132,13 +153,13 @@ func main() {
 					for name, def := range out.Definitions {
 						definitions[name] = def
 					}
-					endpoints["/event/{wfid}/"+v.Callback.Name] = map[string]interface{}{
+					endpoints["/event/{id}/"+v.Callback.Name] = map[string]interface{}{
 						"post": map[string]interface{}{
 							"consumes": []string{"application/json"},
 							"produces": []string{"application/json"},
 							"parameters": []map[string]interface{}{
 								{
-									"name":        "wfid",
+									"name":        "id",
 									"in":          "path",
 									"description": "workflow id",
 									"required":    true,
