@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/firestore"
+	"github.com/alecthomas/jsonschema"
 	"github.com/gorchestrate/async"
 	"github.com/gorilla/mux"
 	cloudtasks "google.golang.org/api/cloudtasks/v2beta3"
@@ -19,6 +20,7 @@ var gTaskMgr *GTasksScheduler
 var engine *FirestoreEngine
 
 func main() {
+	jsonschema.Version = ""
 	rand.Seed(time.Now().Unix())
 	ctx := context.Background()
 	db, err := firestore.NewClient(ctx, "async-315408")
@@ -87,12 +89,92 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(wf)
 	})
-	mr.HandleFunc("/definition", func(w http.ResponseWriter, r *http.Request) {
+	mr.HandleFunc("/swagger", func(w http.ResponseWriter, r *http.Request) {
 		wf := PizzaOrderWorkflow{}
+		definitions := map[string]interface{}{}
+		endpoints := map[string]interface{}{}
+		docs := map[string]interface{}{
+			"definitions": definitions,
+			"swagger":     "2.0",
+			"info": map[string]interface{}{
+				"title":   "Pizza Service",
+				"version": "0.0.1",
+			},
+			"host":     "pizzaapp-ffs2ro4uxq-uc.a.run.app",
+			"basePath": "/",
+			"schemes":  []string{"https"},
+			"paths":    endpoints,
+		}
+		var oErr error
+		_, err := async.Walk(wf.Definition(), func(s async.Stmt) bool {
+			switch x := s.(type) {
+			case async.WaitEventsStmt:
+				for _, v := range x.Cases {
+					h, ok := v.Handler.(*ReflectEvent)
+					if !ok {
+						continue
+					}
+					in, out, err := h.Schemas()
+					if err != nil {
+						oErr = err
+						panic(err)
+					}
+					for name, def := range in.Definitions {
+						definitions[name] = def
+					}
+					for name, def := range out.Definitions {
+						definitions[name] = def
+					}
+					endpoints["/event/{wfid}/"+v.Callback.Name] = map[string]interface{}{
+						"post": map[string]interface{}{
+							"consumes": []string{"application/json"},
+							"produces": []string{"application/json"},
+							"parameters": []map[string]interface{}{
+								{
+									"name":        "wfid",
+									"in":          "path",
+									"description": "workflow id",
+									"required":    true,
+									"type":        "string",
+								},
+								{
+									"name":        "body",
+									"in":          "body",
+									"description": "event data",
+									"required":    true,
+									"schema": map[string]interface{}{
+										"$ref": in.Ref,
+									},
+								},
+							},
+							"responses": map[string]interface{}{
+								"200": map[string]interface{}{
+									"description": "success",
+									"schema": map[string]interface{}{
+										"$ref": out.Ref,
+									},
+								},
+							},
+						},
+					}
+				}
+			}
+			return false
+		})
+		if err != nil {
+			w.WriteHeader(500)
+			fmt.Fprintf(w, err.Error())
+			return
+		}
+		if oErr != nil {
+			w.WriteHeader(500)
+			fmt.Fprintf(w, oErr.Error())
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		e := json.NewEncoder(w)
 		e.SetIndent("", " ")
-		_ = e.Encode(wf.Definition())
+		_ = e.Encode(docs)
 	})
 
 	mr.HandleFunc("/event/{id}/{event}", SimpleEventHandler)

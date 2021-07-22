@@ -173,6 +173,27 @@ func (h ReflectEvent) InputSchema() ([]byte, error) {
 	return json.Marshal(jsonschema.ReflectFromType(ft.In(0)))
 }
 
+func (h ReflectEvent) Schemas() (in *jsonschema.Schema, out *jsonschema.Schema, err error) {
+	fv := reflect.ValueOf(h.Handler)
+	ft := fv.Type()
+	if ft.NumOut() != 2 {
+		return nil, nil, fmt.Errorf("async http handler should have 2 outputs")
+	}
+	if ft.Out(0).Kind() != reflect.Struct {
+		return nil, nil, fmt.Errorf(("input param is not a struct"))
+	}
+	if ft.NumIn() != 1 {
+		return nil, nil, fmt.Errorf("async http handler should have 1 input") // TODO: ctx support?
+	}
+	if ft.In(0).Kind() != reflect.Struct {
+		return nil, nil, fmt.Errorf(("input param is not a struct"))
+	}
+	r := jsonschema.Reflector{
+		FullyQualifyTypeNames: true,
+	}
+	return r.ReflectFromType(ft.In(0)), r.ReflectFromType(ft.Out(0)), nil
+}
+
 func (h ReflectEvent) MarshalJSON() ([]byte, error) {
 	fv := reflect.ValueOf(h.Handler)
 	ft := fv.Type()

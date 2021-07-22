@@ -8,14 +8,15 @@ Using such approach you can create API's for workflow much faster and simpler.
 
 ## TODO
 
-* Swagger docs generation for all events
-* GraphViz diagrams for the workflow
-* UI to see the workflow and it's steps
+* GraphViz diagrams of the workflow.
+* UI to see the workflow state, view available actions and  send them to backend.
 
 
 ## API
 
 Deployed at https://pizzaapp-ffs2ro4uxq-uc.a.run.app
+
+Swagger: https://pizzaapp-ffs2ro4uxq-uc.a.run.app/swagger
 
 Create Workflow
 	https://pizzaapp-ffs2ro4uxq-uc.a.run.app/new/{id}
