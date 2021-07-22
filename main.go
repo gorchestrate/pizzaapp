@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/rs/cors"
+
 	"cloud.google.com/go/firestore"
 	"github.com/alecthomas/jsonschema"
 	"github.com/gorchestrate/async"
@@ -32,6 +34,11 @@ func main() {
 		panic(err)
 	}
 	mr := mux.NewRouter()
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"https://petstore.swagger.io"},
+		AllowedMethods: []string{"GET"},
+	})
+	mr.Use(c.Handler)
 	engine = &FirestoreEngine{
 		DB:         db,
 		Collection: "workflows",
