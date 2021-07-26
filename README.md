@@ -6,10 +6,6 @@ This workflow definition was written in 5-10 minutes and simulates application f
 
 Using such approach you can create API's for workflow much faster and simpler.
 
-## TODO
-
-* UI to see the workflow state, view available actions and  send them to backend.
-
 ## API
 
 Deployed at https://pizzaapp-ffs2ro4uxq-uc.a.run.app
@@ -29,7 +25,6 @@ Send Events
 https://pizzaapp-ffs2ro4uxq-uc.a.run.app/event/{id}/{event}
 
 
-
 ```
 export wfid={FILL IN YOUR ID}
 curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/new/$wfid
@@ -44,7 +39,6 @@ curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/event/$wfid/take_f
 curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/event/$wfid/delivered
 
 ```
-
 
 
 ### Definition
