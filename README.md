@@ -49,10 +49,6 @@ curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/event/$wfid/delive
 
 
 
-
-
-
-
 ### Definition
 ```go
 func (wf *PizzaOrderWorkflow) Definition() async.Section {
@@ -176,3 +172,6 @@ func (wf *PizzaOrderWorkflow) Definition() async.Section {
 	)
 }
 ```
+
+### Directed Graph tree
+![Directed Graph PizzaApp](https://pizzaapp-ffs2ro4uxq-uc.a.run.app/graph "Pizza App definition flow")
