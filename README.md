@@ -8,9 +8,7 @@ Using such approach you can create API's for workflow much faster and simpler.
 
 ## TODO
 
-* GraphViz diagrams of the workflow.
 * UI to see the workflow state, view available actions and  send them to backend.
-
 
 ## API
 
