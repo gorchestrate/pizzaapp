@@ -7,8 +7,12 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"reflect"
+	"strconv"
 	"time"
 
+	"github.com/awalterschulze/gographviz"
+	"github.com/goccy/go-graphviz"
 	"github.com/rs/cors"
 
 	"cloud.google.com/go/firestore"
@@ -96,6 +100,21 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(wf)
 	})
+
+	mr.HandleFunc("/graph", func(w http.ResponseWriter, r *http.Request) {
+		wf := PizzaOrderWorkflow{}
+		g := Grapher{}
+		def := g.Dot(wf.Definition())
+		gv := graphviz.New()
+		gd, err := graphviz.ParseBytes([]byte(def))
+		if err != nil {
+			fmt.Fprintf(w, " %v \n %v", def, err)
+			return
+		}
+		w.Header().Add("Content-Type", "image/jpg")
+		gv.Render(gd, graphviz.JPG, w)
+	})
+
 	mr.HandleFunc("/swagger", func(w http.ResponseWriter, r *http.Request) {
 		wf := PizzaOrderWorkflow{}
 		definitions := map[string]interface{}{}
@@ -213,6 +232,148 @@ func main() {
 	}
 }
 
+type Grapher struct {
+	g *gographviz.Graph
+}
+
+func (g *Grapher) Dot(s async.Stmt) string {
+	g.g = gographviz.NewGraph()
+	g.g.Directed = true
+	_ = g.g.AddNode("", "start", nil)
+	_ = g.g.AddNode("", "end", nil)
+	ctx := GraphCtx{
+		Prev: []string{"start"},
+	}
+	octx := g.Walk(s, ctx)
+	g.AddEdges(octx.Prev, "end")
+	return g.g.String()
+}
+
+func (g *Grapher) AddEdges(from []string, to string) {
+	for _, v := range from {
+		_ = g.g.AddEdge(v, to, true, nil)
+	}
+}
+
+func (g *Grapher) AddEdge(from string, to string) {
+	if from == "" || to == "" {
+		return
+	}
+	_ = g.g.AddEdge(from, to, true, nil)
+}
+
+type GraphCtx struct {
+	Parent string
+	Prev   []string
+	Break  []string
+}
+
+var ncount int
+
+func (ctx *GraphCtx) pnode(g *Grapher, name string) string {
+	ncount++
+	id := fmt.Sprint(ncount)
+	_ = g.g.AddNode(ctx.Parent, id, map[string]string{
+		"label": strconv.Quote(name),
+	})
+	return id
+}
+
+func (ctx *GraphCtx) node(g *Grapher, name string) string {
+	ncount++
+	id := fmt.Sprint(ncount)
+	_ = g.g.AddNode("", id, map[string]string{
+		"label": strconv.Quote(name),
+	})
+	return id
+}
+
+func (g *Grapher) Walk(s async.Stmt, ctx GraphCtx) GraphCtx {
+	switch x := s.(type) {
+	case nil:
+		return GraphCtx{}
+	case async.ReturnStmt:
+		n := ctx.pnode(g, "end")
+		g.AddEdges(ctx.Prev, n)
+		return GraphCtx{}
+	case async.BreakStmt:
+		return GraphCtx{Break: ctx.Prev}
+	case async.ContinueStmt:
+		n := ctx.pnode(g, "continue")
+		g.AddEdges(ctx.Prev, n)
+		return GraphCtx{Prev: []string{n}}
+	case async.StmtStep:
+		id := ctx.pnode(g, x.Name)
+		g.AddEdges(ctx.Prev, id)
+		return GraphCtx{Prev: []string{id}}
+	case async.WaitCondStmt:
+		id := ctx.pnode(g, "wait for "+x.Name)
+		g.AddEdges(ctx.Prev, id)
+		return GraphCtx{Prev: []string{id}}
+	case async.WaitEventsStmt:
+		id := ctx.pnode(g, "wait "+x.Name)
+		g.AddEdges(ctx.Prev, id)
+		prev := []string{}
+		breaks := []string{}
+		for _, v := range x.Cases {
+			cid := ctx.node(g, v.Callback.Name)
+			_ = g.g.AddEdge(id, cid, true, nil)
+			octx := g.Walk(v.Stmt, GraphCtx{
+				Prev: []string{cid},
+			})
+			prev = append(prev, octx.Prev...)
+			breaks = append(breaks, octx.Break...)
+		}
+		return GraphCtx{Prev: prev}
+	case *async.GoStmt:
+		id := ctx.pnode(g, x.Name)
+
+		for _, v := range ctx.Prev {
+			_ = g.g.AddEdge(v, id, true, map[string]string{
+				"style": "dashed",
+				"label": "parallel",
+			})
+		}
+		//g.AddEdges(octx.Prev, "end")
+		octx := g.Walk(x.Stmt, GraphCtx{Prev: []string{id}})
+		pend := ctx.node(g, "end parallel")
+		g.AddEdges(octx.Prev, pend)
+		return GraphCtx{Prev: ctx.Prev}
+	case async.ForStmt:
+		id := ctx.pnode(g, "while "+x.Name)
+		g.AddEdges(ctx.Prev, id)
+		breaks := []string{}
+		curCtx := GraphCtx{Prev: []string{id}}
+		for _, v := range x.Section {
+			curCtx = g.Walk(v, GraphCtx{
+				Prev:   curCtx.Prev,
+				Parent: "sub",
+			})
+			breaks = append(breaks, curCtx.Break...)
+		}
+		g.AddEdges(curCtx.Prev, id)
+		return GraphCtx{Prev: append(breaks, id)}
+	case *async.SwitchStmt:
+		for _, v := range x.Cases {
+			g.Walk(v.Stmt, ctx)
+		}
+		return GraphCtx{}
+	case async.Section:
+		curCtx := ctx
+		breaks := []string{}
+		for _, v := range x {
+			curCtx = g.Walk(v, GraphCtx{
+				Prev:   curCtx.Prev,
+				Parent: ctx.Parent,
+			})
+			breaks = append(breaks, curCtx.Break...)
+		}
+		return GraphCtx{Prev: curCtx.Prev, Break: breaks}
+	default:
+		panic(reflect.TypeOf(s))
+	}
+}
+
 var S = async.S
 var If = async.If
 var Switch = async.Switch
@@ -222,6 +383,6 @@ var For = async.For
 var On = async.On
 var Go = async.Go
 var Wait = async.Wait
-var WaitCond = async.WaitCond
+var WaitFor = async.WaitFor
 var Return = async.Return
 var Break = async.Break

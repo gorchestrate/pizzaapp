@@ -37,10 +37,18 @@ type PizzaOrderWorkflow struct {
 
 func (wf *PizzaOrderWorkflow) Definition() async.Section {
 	return S(
-		For(true, "order not yet submitted",
-			Wait("wait for user input",
+		For("order not yet submitted", wf.Status == "submited",
+			Wait("for user input",
 				On("24h passsed", gTaskMgr.Timeout(24*3600*time.Second),
-					Step("cart timed out", func() error {
+					Step("cart timed out1", func() error {
+						wf.Status = "timed out"
+						return nil
+					}),
+					Step("cart timed out2", func() error {
+						wf.Status = "timed out"
+						return nil
+					}),
+					Step("cart timed out3", func() error {
 						wf.Status = "timed out"
 						return nil
 					}),
@@ -57,11 +65,11 @@ func (wf *PizzaOrderWorkflow) Definition() async.Section {
 				Event("submit", func(in Empty) (PizzaOrderWorkflow, error) {
 					wf.Status = "submitted"
 					return *wf, nil
-				}, Break()),
+				}),
 			),
 		),
 
-		Wait("manager confirms order",
+		Wait("manager to confirm order",
 			On("10min passsed", gTaskMgr.Timeout(10*60*time.Second),
 				Step("manager didn't confirm", func() error {
 					wf.Status = "manager is sleeping"
@@ -85,7 +93,7 @@ func (wf *PizzaOrderWorkflow) Definition() async.Section {
 			),
 		)),
 
-		Wait("kitchen takes order",
+		Wait("for kitchen to take order",
 			On("30min passsed", gTaskMgr.Timeout(30*60*time.Second),
 				Step("kitchen didn't confirm", func() error {
 					wf.Status = "kitchen is sleeping"
@@ -101,7 +109,7 @@ func (wf *PizzaOrderWorkflow) Definition() async.Section {
 			}),
 		),
 
-		Wait("pizzas cooked",
+		Wait("pizzas to be cooked",
 			On("1h cook timeout", gTaskMgr.Timeout(60*60*time.Second),
 				Step("kitchen didn't cook in time", func() error {
 					wf.Status = "kitchen cooking is not done"
@@ -116,7 +124,7 @@ func (wf *PizzaOrderWorkflow) Definition() async.Section {
 			}),
 		),
 
-		Wait("taken for delivery",
+		Wait("to be taken for delivery",
 			On("1h to take timeout", gTaskMgr.Timeout(60*60*time.Second),
 				Step("delivery forgot about this order", func() error {
 					wf.Status = "delivery is not done"
@@ -144,7 +152,7 @@ func (wf *PizzaOrderWorkflow) Definition() async.Section {
 				return *wf, nil
 			}),
 		),
-		WaitCond(wf.Paid, "wait for payment", func() {
+		WaitFor("payment", wf.Paid, func() {
 			wf.Status = "completed"
 		}),
 	)
