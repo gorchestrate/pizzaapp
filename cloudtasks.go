@@ -96,7 +96,7 @@ func (t *TimeoutHandler) Handle(ctx context.Context, req async.CallbackRequest, 
 	return nil, nil
 }
 
-func (t *TimeoutHandler) Setup(ctx context.Context, req async.CallbackRequest) (json.RawMessage, error) {
+func (t *TimeoutHandler) Setup(ctx context.Context, req async.CallbackRequest) (string, error) {
 	return t.scheduler.Setup(ctx, req, t.Duration)
 }
 
@@ -123,7 +123,7 @@ type GTasksSchedulerData struct {
 	ID string
 }
 
-func (mgr *GTasksScheduler) Setup(ctx context.Context, req async.CallbackRequest, del time.Duration) (json.RawMessage, error) {
+func (mgr *GTasksScheduler) Setup(ctx context.Context, req async.CallbackRequest, del time.Duration) (string, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
 		panic(err)
@@ -143,12 +143,12 @@ func (mgr *GTasksScheduler) Setup(ctx context.Context, req async.CallbackRequest
 			},
 		}).Do()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	d, err := json.Marshal(GTasksSchedulerData{
 		ID: resp.Name,
 	})
-	return d, err
+	return string(d), err
 }
 
 func (mgr *GTasksScheduler) Teardown(ctx context.Context, req async.CallbackRequest, handled bool) error {
@@ -157,7 +157,7 @@ func (mgr *GTasksScheduler) Teardown(ctx context.Context, req async.CallbackRequ
 		return nil
 	}
 	var data GTasksSchedulerData
-	err := json.Unmarshal(req.SetupData, &data)
+	err := json.Unmarshal([]byte(req.SetupData), &data)
 	if err != nil {
 		return err
 	}

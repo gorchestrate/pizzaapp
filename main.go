@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"reflect"
 	"strconv"
 	"time"
@@ -223,13 +224,13 @@ func main() {
 		e.SetIndent("", " ")
 		_ = e.Encode(docs)
 	})
-
 	mr.HandleFunc("/event/{id}/{event}", SimpleEventHandler)
 
-	err = http.ListenAndServe(":8080", mr)
-	if err != nil {
-		panic(err)
+	port := ":8080"
+	if os.Getenv("PORT") != "" {
+		port = ":" + os.Getenv("PORT")
 	}
+	log.Fatal(http.ListenAndServe(port, mr))
 }
 
 type Grapher struct {

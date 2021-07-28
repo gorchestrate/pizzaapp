@@ -37,7 +37,11 @@ type PizzaOrderWorkflow struct {
 
 func (wf *PizzaOrderWorkflow) Definition() async.Section {
 	return S(
-		For("order not yet submitted", wf.Status == "submited",
+		Step("setup", func() error {
+			wf.Status = "setup"
+			return nil
+		}),
+		For("order not yet submitted", wf.Status != "submitted",
 			Wait("for user input",
 				On("24h passsed", gTaskMgr.Timeout(24*3600*time.Second),
 					Step("cart timed out1", func() error {
@@ -283,9 +287,9 @@ func (h *ReflectEvent) Handle(ctx context.Context, req async.CallbackRequest, in
 }
 
 // when we will start listening for this event - Setup() will be called for us to setup this event on external services
-func (t *ReflectEvent) Setup(ctx context.Context, req async.CallbackRequest) (json.RawMessage, error) {
+func (t *ReflectEvent) Setup(ctx context.Context, req async.CallbackRequest) (string, error) {
 	// we will receive event via http call, no setup is needed
-	return nil, nil
+	return "", nil
 }
 
 // when we will stop listening for this event - Teardown() will be called for us to remove this event on external services

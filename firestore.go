@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -20,9 +21,12 @@ type FirestoreEngine struct {
 }
 
 type DBWorkflow struct {
-	Meta     async.State
-	State    interface{} // json body of workflow state
-	LockTill time.Time   // optimistic locking
+	Meta            async.State
+	State           interface{} // json body of workflow state
+	LockTill        time.Time   // optimistic locking
+	Sampling100     bool
+	Sampling10000   bool
+	Sampling1000000 bool
 }
 
 func (fs FirestoreEngine) Lock(ctx context.Context, id string) (DBWorkflow, error) {
@@ -81,7 +85,38 @@ func (fs FirestoreEngine) Unlock(ctx context.Context, id string) error {
 	return nil
 }
 
-func (fs FirestoreEngine) Checkpoint(ctx context.Context, wf *DBWorkflow, s *async.WorkflowState) func(bool) error {
+type DBWorkflowLog struct {
+	Meta         async.State
+	State        interface{} // json body of workflow state
+	Time         time.Time
+	ExecDuration time.Duration
+	Input        interface{}
+	Output       interface{}
+	Callback     *async.CallbackRequest
+
+	Sampling100     bool
+	Sampling10000   bool
+	Sampling1000000 bool
+}
+
+func pjson(in interface{}) interface{} {
+	d, ok := in.([]byte)
+	if ok {
+		var i interface{}
+		_ = json.Unmarshal(d, &i)
+		return i
+	}
+	d, ok = in.(json.RawMessage)
+	if ok {
+		var i interface{}
+		_ = json.Unmarshal(d, &i)
+		return i
+	}
+	return in
+}
+
+func (fs FirestoreEngine) Checkpoint(ctx context.Context, wf *DBWorkflow, s *async.WorkflowState, cb *async.CallbackRequest, input, output interface{}) func(bool) error {
+	start := time.Now()
 	return func(resume bool) error {
 		if resume {
 			err := fs.Scheduler.Schedule(ctx, wf.Meta.ID)
@@ -89,18 +124,35 @@ func (fs FirestoreEngine) Checkpoint(ctx context.Context, wf *DBWorkflow, s *asy
 				return err
 			}
 		}
-		_, err := fs.DB.Collection(fs.Collection).Doc(wf.Meta.ID).Update(ctx,
-			[]firestore.Update{
-				{
-					Path:  "Meta",
-					Value: wf.Meta,
-				},
-				{
-					Path:  "State",
-					Value: *s,
-				},
+		b := fs.DB.Batch()
+		b.Update(fs.DB.Collection(fs.Collection).Doc(wf.Meta.ID), []firestore.Update{
+			{
+				Path:  "Meta",
+				Value: wf.Meta,
 			},
-		)
+			{
+				Path:  "State",
+				Value: *s,
+			},
+		})
+		in, ok := input.([]byte)
+		if ok {
+			input = in
+		}
+
+		b.Set(fs.DB.Collection(fs.Collection+"_log").Doc(fmt.Sprintf("%v_%v", wf.Meta.ID, wf.Meta.PC)), DBWorkflowLog{
+			Meta:            wf.Meta,
+			State:           wf.State,
+			Time:            time.Now(),
+			ExecDuration:    time.Since(start),
+			Input:           pjson(input),
+			Output:          pjson(output),
+			Callback:        cb,
+			Sampling100:     wf.Sampling100,
+			Sampling10000:   wf.Sampling10000,
+			Sampling1000000: wf.Sampling1000000,
+		})
+		_, err := b.Commit(ctx)
 		return err
 	}
 }
@@ -124,9 +176,13 @@ func (fs FirestoreEngine) HandleCallback(ctx context.Context, id string, cb asyn
 	if err != nil {
 		return nil, err
 	}
-	out, err := async.HandleCallback(ctx, cb, state, &wf.Meta, input, fs.Checkpoint(ctx, &wf, &state))
+	out, err := async.HandleCallback(ctx, cb, state, &wf.Meta, input)
 	if err != nil {
 		return out, fmt.Errorf("err during workflow processing: %v", err)
+	}
+	err = fs.Checkpoint(ctx, &wf, &state, &cb, input, out)(true)
+	if err != nil {
+		return out, fmt.Errorf("err during workflow saving: %v", err)
 	}
 	return out, nil
 }
@@ -150,9 +206,13 @@ func (fs FirestoreEngine) HandleEvent(ctx context.Context, id string, name strin
 	if err != nil {
 		return nil, err
 	}
-	out, err := async.HandleEvent(ctx, name, state, &wf.Meta, input, fs.Checkpoint(ctx, &wf, &state))
+	out, err := async.HandleEvent(ctx, name, state, &wf.Meta, input)
 	if err != nil {
 		return out, fmt.Errorf("err during workflow processing: %v", err)
+	}
+	err = fs.Checkpoint(ctx, &wf, &state, &async.CallbackRequest{Name: name}, input, out)(true)
+	if err != nil {
+		return out, fmt.Errorf("err during workflow saving: %v", err)
 	}
 	return out, nil
 }
@@ -176,7 +236,7 @@ func (fs FirestoreEngine) Resume(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	err = async.Resume(ctx, state, &wf.Meta, fs.Checkpoint(ctx, &wf, &state))
+	err = async.Resume(ctx, state, &wf.Meta, fs.Checkpoint(ctx, &wf, &state, nil, nil, nil))
 	if err != nil {
 		return fmt.Errorf("err during workflow processing: %v", err)
 	}
@@ -198,9 +258,13 @@ func (fs FirestoreEngine) ScheduleAndCreate(ctx context.Context, id, name string
 	if err != nil {
 		return err
 	}
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 	wf := DBWorkflow{
-		Meta:  async.NewState(id, name),
-		State: state,
+		Meta:            async.NewState(id, name),
+		State:           state,
+		Sampling100:     rnd.Intn(100) == 0,
+		Sampling10000:   rnd.Intn(10000) == 0,
+		Sampling1000000: rnd.Intn(1000000) == 0,
 	}
 	_, err = fs.DB.Collection(fs.Collection).Doc(id).Create(ctx, wf)
 	return err
