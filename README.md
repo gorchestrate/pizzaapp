@@ -5,7 +5,7 @@ It shows how you can brainstorm your workflows and create APIs to manage it on t
 This workflow definition was written in 5-10 minutes and simulates application for pizza ordering.
 
 Using such approach you can create API's for workflow much faster and simpler.
-
+1
 ## API
 
 Deployed at https://pizzaapp-ffs2ro4uxq-uc.a.run.app
@@ -165,5 +165,4 @@ func (wf *PizzaOrderWorkflow) Definition() async.Section {
 }
 ```
 
-### Directed Graph tree
-![Directed Graph Pizzaapp](https://pizzaapp-ffs2ro4uxq-uc.a.run.app/graph "Pizza App definition flow")
+![a relative link](screenshot.jpg)
