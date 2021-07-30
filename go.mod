@@ -6,6 +6,6 @@ replace github.com/gorchestrate/async => ../async
 replace github.com/gorchestrate/gasync => ../gasync
 
 require (
-	github.com/gorchestrate/async v0.10.1
-	github.com/gorchestrate/gasync v0.1.3
+	github.com/gorchestrate/async v0.10.2
+	github.com/gorchestrate/gasync v0.1.5
 )
