@@ -1,5 +1,6 @@
 IMAGE = gcr.io/${GOOGLE_CLOUD_PROJECT}/pizzaapp:$(shell git describe --tags --abbrev=0)
 push:
+	npm run build --prefix ui
 	CGO_ENABLED=1 go build -tags netgo -ldflags "-w -extldflags \"-static\"" -o pizzaapp .
 	docker build -t ${IMAGE} .
 	gcloud docker -- push ${IMAGE}

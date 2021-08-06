@@ -8,6 +8,7 @@ Using such approach you can create API's for workflow much faster and simpler.
 
 ## API
 Deployed at https://pizzaapp-ffs2ro4uxq-uc.a.run.app
+You can try it out at https://pizzaapp-ffs2ro4uxq-uc.a.run.app/ui/
 
 ### Definition
 ```go
@@ -137,19 +138,3 @@ func (wf *PizzaOrderWorkflow) Definition() async.Section {
 https://petstore.swagger.io/?url=https://pizzaapp-ffs2ro4uxq-uc.a.run.app/swagger/pizza
 
 ![link to docs](screenshot.jpg)
-
-
-### Script to try it out
-```
-export wfid={FILL IN YOUR ID}
-curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/wf/pizza/$wfid
-curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/wf/pizza/$wfid/clean
-curl -X POST -d '{"Name":"pepperoni","Qty":2}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/wf/pizza/$wfid/add
-curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/wf/pizza/$wfid/submit
-curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/wf/pizza/$wfid/confirm
-curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/wf/pizza/$wfid/confirm_payment
-curl -X POST -d '{"CookName":"Chef"}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/wf/pizza/$wfid/start_cooking
-curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/wf/pizza/$wfid/cooked
-curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/wf/pizza/$wfid/take_for_delivery
-curl -X POST -d '{}' https://pizzaapp-ffs2ro4uxq-uc.a.run.app/wf/pizza/$wfid/delivered
-```
