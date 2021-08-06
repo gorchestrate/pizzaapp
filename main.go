@@ -33,13 +33,16 @@ ACL:
 							key:"",
 							value:""
 						},
+						not-equal: {
+							key:"",
+							value:""
+						},
 						contains: {
 							key: "",
 							value: ""
 						},
-						in:
-						notin:
 						range:
+							key:
 							ge:
 							le:
 							lte:
