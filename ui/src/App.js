@@ -91,24 +91,36 @@ class JsonForm extends React.Component {
     }
     console.log(active)
     var forms = active.map((h) => {
+      var result = h.Name.replace(/([A-Z])/g, " $1");
+      var text = result.charAt(0).toUpperCase() + result.slice(1);
+
       var uiSchema = {
-       // "ui:title": h.
+        "ui:title": text,
       }
       console.log(h.Handler)
 
       var onSubmit = async (data) =>  {
-        console.log("SUBMITT", JSON.stringify(data.formData))
-        var resp = await fetch('/wf/pizza/'+this.state.workflow.Meta.ID+"/"+h.Name, {
-          method: 'POST', // or 'PUT'
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(data.formData),
-        })
-        var res = await resp.json();
-        console.log("res", res)
-        this.loadWorkflow();
+        console.log("SUBMIT", JSON.stringify(data.formData))
+        try {
+          var resp = await fetch('/wf/pizza/'+this.state.workflow.Meta.ID+"/"+h.Name, {
+            method: 'POST', // or 'PUT'
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data.formData),
+          })
+          console.log("resp", resp)
+          if (resp.status == 200){
+            this.loadWorkflow();
+            return
+          }
+          var res = await resp.json();
+          console.log("res", res)
+        } catch(e) {
+          console.log(e)
+        }
       }
+     
       var yourForm;
       var presubmit = (e) => {
         e.preventDefault();
@@ -125,7 +137,7 @@ class JsonForm extends React.Component {
                     onError={log("errors")}>
                    <div>
                       <M.Button color="primary" type="submit">
-                        {h.Role} | {h.Name}
+                        Submit
                       </M.Button>
                     </div>
                     </Form>
@@ -137,15 +149,20 @@ class JsonForm extends React.Component {
     // Render Form for each available action (button for action with empty schema)
     // Submit form to API
     // Refresh workflow on 
+      var uiSchema = {
+        "ui:title": "Workflwow State",
+      }
       return (
               <M.Grid container spacing={5} justifyContent="space-around" direction="row">
             <M.Grid container xs={5} style={{ padding: 10 }} >
                   <Form schema={this.state.definition.State}
                   formData={this.state.workflow.State}
+                  uiSchema={uiSchema}
+                  disabled
                   onChange={log("changed")}
                   onSubmit={log("submitted")}
                   onError={log("errors")}>
-                    <M.Button color="primary" type="submit">Update Workflow State</M.Button>
+                    <div></div>
                   </Form>
             </M.Grid>
             <M.Grid container item xs={5} spacing={2} direction="row" >
@@ -170,7 +187,6 @@ const log = (type) => console.log.bind(console, type);
 
 function App() {
   var onSubmit = async () => {
-    console.log("SUBMIT")
     var id = (Math.random()*100000000000000000).toString()
     var resp = await fetch('/wf/pizza/'+id, {
       method: 'POST', // or 'PUT'

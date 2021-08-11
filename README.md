@@ -17,123 +17,81 @@ https://petstore.swagger.io/?url=https://pizzaapp-ffs2ro4uxq-uc.a.run.app/swagge
 ```go
 func (wf *PizzaOrderWorkflow) Definition() async.Section {
 	return S(
-		Step("init", func() error {
-			wf.Cart = []Pizza{}
-			wf.Status = "started"
+		Step("setup", func() error {
+			wf.Status = "setup"
 			return nil
 		}),
-
-		For(true, "order not yet submitted",
-			Wait("wait for user input",
-				On("24h passsed", gTaskMgr.Timeout(24*3600*time.Second),
-					Step("cart timed out", func() error {
-						wf.Status = "timed out"
-						return nil
-					}),
+		For("order not yet submitted", wf.Status != "submitted",
+			Wait("for user input",
+				gs.Timeout("cart timed out", 24*3600*time.Second, S(
 					Return(), //stop workflow
-				),
-				Event("add", func(in Pizza) (PizzaOrderWorkflow, error) {
+				)),
+				gasync.Event("Customer", "AddToCart", func(in Pizza) (PizzaOrderWorkflow, error) {
 					wf.Cart = append(wf.Cart, in)
 					return *wf, nil
 				}),
-				Event("clean", func(in Pizza) (PizzaOrderWorkflow, error) {
+				gasync.Event("Customer", "EmptyCart", func(in Empty) (PizzaOrderWorkflow, error) {
 					wf.Cart = []Pizza{}
 					return *wf, nil
 				}),
-				Event("submit", func(in Empty) (PizzaOrderWorkflow, error) {
+				gasync.Event("Customer", "SubmitCart", func(in Empty) (PizzaOrderWorkflow, error) {
 					wf.Status = "submitted"
 					return *wf, nil
-				}, Break()),
+				}),
 			),
 		),
 
-		Wait("manager confirms order",
-			On("10min passsed", gTaskMgr.Timeout(10*60*time.Second),
-				Step("manager didn't confirm", func() error {
-					wf.Status = "manager is sleeping"
-					log.Printf("notify user that order won't be processed because manager did not confirm order in time")
-					return nil
-				}),
-				Return(), //stop workflow
-			),
-			Event("confirm", func(in Empty) (PizzaOrderWorkflow, error) {
+		Wait("manager to confirm order",
+			gasync.Event("Manager", "ConfirmOrder", func(in ConfirmRecord) (PizzaOrderWorkflow, error) {
 				wf.Status = "confirmed"
+				wf.ManagerName = in.ManagerName
+				wf.Amount = in.Amount
 				return *wf, nil
 			}),
 		),
 
 		Go("customer pays while order is cooking", S(
 			Wait("customer pays money",
-				Event("confirm_payment", func(in Empty) (PizzaOrderWorkflow, error) {
-					wf.Paid = true
+				gasync.Event("Manager", "ConfirmPayment", func(in PaymentRecord) (PizzaOrderWorkflow, error) {
+					wf.PaidAmount = in.PaidAmount
+					wf.Location = in.DeliveryAddress
 					return *wf, nil
 				}),
 			),
 		)),
 
-		Wait("kitchen takes order",
-			On("30min passsed", gTaskMgr.Timeout(30*60*time.Second),
-				Step("kitchen didn't confirm", func() error {
-					wf.Status = "kitchen is sleeping"
-					log.Printf("notify user that order won't be processed because kitchen is sleeping")
-					return nil
-				}),
-				Return(), //stop workflow
-			),
-			Event("start_cooking", func(in CookingRecord) (PizzaOrderWorkflow, error) {
+		Wait("for kitchen to take order",
+			gasync.Event("Cook", "StartCooking", func(in CookingRecord) (PizzaOrderWorkflow, error) {
 				wf.Status = "cooking"
 				wf.CookName = in.CookName
 				return *wf, nil
 			}),
 		),
 
-		Wait("pizzas cooked",
-			On("1h cook timeout", gTaskMgr.Timeout(60*60*time.Second),
-				Step("kitchen didn't cook in time", func() error {
-					wf.Status = "kitchen cooking is not done"
-					log.Printf("notify user that order won't be processed because kitchen can't cook his pizza")
-					return nil
-				}),
-				Return(), //stop workflow
-			),
-			Event("cooked", func(in Empty) (PizzaOrderWorkflow, error) {
+		Wait("pizzas to be cooked",
+			gasync.Event("Cook", "Cooked", func(in Empty) (PizzaOrderWorkflow, error) {
 				wf.Status = "cooked"
 				return *wf, nil
 			}),
 		),
 
-		Wait("taken for delivery",
-			On("1h to take timeout", gTaskMgr.Timeout(60*60*time.Second),
-				Step("delivery forgot about this order", func() error {
-					wf.Status = "delivery is not done"
-					log.Printf("notify user that order won't be processed because delivery can't be done")
-					return nil
-				}),
-				Return(), //stop workflow
-			),
-			Event("take_for_delivery", func(in Empty) (PizzaOrderWorkflow, error) {
+		Wait("to be taken for delivery",
+			gasync.Event("Delivery", "TakeForDelivery", func(in Empty) (PizzaOrderWorkflow, error) {
 				wf.Status = "delivering"
 				return *wf, nil
 			}),
 		),
 		Wait("for delivered",
-			On("1h delivery timeout", gTaskMgr.Timeout(60*60*time.Second),
-				Step("delivery lost on the road", func() error {
-					wf.Status = "delivery is lost"
-					log.Printf("notify user that order won't be processed because delivery was lost on a road")
-					return nil
-				}),
-				Return(), //stop workflow
-			),
-			Event("delivered", func(in Empty) (PizzaOrderWorkflow, error) {
+			gasync.Event("Delivery", "Delivered", func(in Empty) (PizzaOrderWorkflow, error) {
 				wf.Status = "delivered"
 				return *wf, nil
 			}),
 		),
-		WaitCond(wf.Paid, "wait for payment", func() {
+		WaitFor("payment", wf.PaidAmount > 0, func() {
 			wf.Status = "completed"
 		}),
 	)
+}
 }
 ```
 ![link to docs](screenshot.jpg)

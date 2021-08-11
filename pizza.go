@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/gorchestrate/async"
@@ -52,7 +51,6 @@ type PizzaOrderWorkflow struct {
 	Location    string
 	CookName    string
 	ManagerName string
-	Logs        []LogRecord
 }
 
 type PaymentRecord struct {
@@ -60,20 +58,10 @@ type PaymentRecord struct {
 	DeliveryAddress string
 }
 
-func (wf *PizzaOrderWorkflow) Log(format string, params ...interface{}) {
-	wf.Logs = append(wf.Logs, LogRecord{
-		Time: time.Now(),
-		Log:  fmt.Sprintf(format, params...),
-	})
-}
-
-// TODO: WaitCond should be within Wait stmt
-
 func (wf *PizzaOrderWorkflow) Definition() async.Section {
 	return S(
 		Step("setup", func() error {
 			wf.Status = "setup"
-			wf.Log("started workflow")
 			return nil
 		}),
 		For("order not yet submitted", wf.Status != "submitted",
@@ -91,7 +79,6 @@ func (wf *PizzaOrderWorkflow) Definition() async.Section {
 				}),
 				gasync.Event("Customer", "SubmitCart", func(in Empty) (PizzaOrderWorkflow, error) {
 					wf.Status = "submitted"
-					wf.Log("cart submitted")
 					return *wf, nil
 				}),
 			),
@@ -102,7 +89,6 @@ func (wf *PizzaOrderWorkflow) Definition() async.Section {
 				wf.Status = "confirmed"
 				wf.ManagerName = in.ManagerName
 				wf.Amount = in.Amount
-				wf.Log("manager confirmed order")
 				return *wf, nil
 			}),
 		),
@@ -110,12 +96,8 @@ func (wf *PizzaOrderWorkflow) Definition() async.Section {
 		Go("customer pays while order is cooking", S(
 			Wait("customer pays money",
 				gasync.Event("Manager", "ConfirmPayment", func(in PaymentRecord) (PizzaOrderWorkflow, error) {
-					if in.PaidAmount+0.01 < wf.Amount {
-						return *wf, fmt.Errorf("amount paid should be %v", wf.Amount)
-					}
 					wf.PaidAmount = in.PaidAmount
 					wf.Location = in.DeliveryAddress
-					wf.Log("customer paid $%v ", in.PaidAmount)
 					return *wf, nil
 				}),
 			),
@@ -125,7 +107,6 @@ func (wf *PizzaOrderWorkflow) Definition() async.Section {
 			gasync.Event("Cook", "StartCooking", func(in CookingRecord) (PizzaOrderWorkflow, error) {
 				wf.Status = "cooking"
 				wf.CookName = in.CookName
-				wf.Log("started cooking")
 				return *wf, nil
 			}),
 		),
@@ -133,7 +114,6 @@ func (wf *PizzaOrderWorkflow) Definition() async.Section {
 		Wait("pizzas to be cooked",
 			gasync.Event("Cook", "Cooked", func(in Empty) (PizzaOrderWorkflow, error) {
 				wf.Status = "cooked"
-				wf.Log("cooked order")
 				return *wf, nil
 			}),
 		),
@@ -141,20 +121,17 @@ func (wf *PizzaOrderWorkflow) Definition() async.Section {
 		Wait("to be taken for delivery",
 			gasync.Event("Delivery", "TakeForDelivery", func(in Empty) (PizzaOrderWorkflow, error) {
 				wf.Status = "delivering"
-				wf.Log("taken for delivery")
 				return *wf, nil
 			}),
 		),
 		Wait("for delivered",
 			gasync.Event("Delivery", "Delivered", func(in Empty) (PizzaOrderWorkflow, error) {
 				wf.Status = "delivered"
-				wf.Log("delivered")
 				return *wf, nil
 			}),
 		),
 		WaitFor("payment", wf.PaidAmount > 0, func() {
 			wf.Status = "completed"
-			wf.Log("completed")
 		}),
 	)
 }
