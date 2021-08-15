@@ -116,10 +116,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Print("AAAA")
 	sub, err := fs.Sub(ui, "ui/build")
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	gs.Router.PathPrefix("/ui/").Handler(http.StripPrefix("/ui/", http.FileServer(http.FS(sub))))
 	log.Fatal(http.ListenAndServe(":8080", gs.Router))
 }
